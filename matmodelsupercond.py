@@ -31,7 +31,7 @@ with st.sidebar:
         st.success(f"⚡ Надпровідний стан: T={T}K < T_c={T_C}K")
         N_S = N_0 * (1 - (T / T_C) ** 4)
         K_COEFF = (N_S * E_CHARGE**2) / M_ELECTRON
-        st.metric("Константа електричного відгуку K", f"{K_COEFF:.2e}")
+        st.metric("Константа електронного відгуку K", f"{K_COEFF:.2e}")
     else:
         st.info(f"🔌 Звичайний метал: T={T}K ≥ T_c={T_C}K")
         SIGMA_COEFF = (N_0 * E_CHARGE**2 * TAU) / M_ELECTRON

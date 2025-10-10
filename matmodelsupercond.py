@@ -39,7 +39,7 @@ with st.sidebar:
     
     # Начальный ток
     J_0 = st.number_input("➡️ Початкова густина струму j₀ (А/м²)", 
-                         min_value=0.0, max_value=1e11, value=1e8, step=1e7)
+                         min_value=0.0, max_value=1e11, value=1e7, step=1e6)
     
     # Тип поля
     st.subheader("📊 Тип зовнішнього поля")

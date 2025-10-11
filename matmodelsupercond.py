@@ -29,7 +29,7 @@ with st.sidebar:
     is_superconductor = (T < T_C)
     if is_superconductor:
         st.success(f"⚡️ Надпровідний стан: T={T}K < T_c={T_C}K")
-        N_S = N_0 * (1 - (T / T_C)  4)
+        N_S = N_0 * (1 - (T / T_C)  4),
         K_COEFF = (N_S * E_CHARGE**2) / M_ELECTRON
         st.metric("Константа електронного відгуку K", f"{K_COEFF:.2e}")
     else:

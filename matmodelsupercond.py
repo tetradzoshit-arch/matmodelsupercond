@@ -40,9 +40,9 @@ with st.sidebar:
         # Розрахунок коефіцієнта Лондонів K
         N_S = N_0 * (1 - (T / T_C) ** 4)
         K_COEFF = (N_S * E_CHARGE**2) / M_ELECTRON
-        st.metric("Коефіцієнт $K$", f"{K_COEFF:.2e} $A/(V \cdot m \cdot s)$")
+        st.metric("Коефіцієнт, f"{K_COEFF:.2e} $A/(V \cdot m \cdot s)")
     else:
-        st.info(f"🔌 Звичайний метал: T={T}K $\\ge$ T_c={T_C}K")
+        st.info(f"🔌 Звичайний метал: T={T}K T_c={T_C}K")
         # Розрахунок провідності Друде σ (використовуючи константу TAU)
         SIGMA_COEFF = (N_0 * E_CHARGE**2 * TAU) / M_ELECTRON
         st.metric("Провідність $\\sigma$", f"{SIGMA_COEFF:.2e} См/м")

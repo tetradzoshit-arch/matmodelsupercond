@@ -20,16 +20,16 @@ if 'simulation_runs' not in st.session_state:
 
 # --- САЙДБАР ДЛЯ ВВОДА ПАРАМЕТРОВ ---
 with st.sidebar:
-    st.header("🎛 Параметри моделювання")
+    st.header("🎛️ Параметри моделювання")
     
     # Выбор температуры
-    T = st.slider("🌡 Температура T (K)", 0.1, 20.0, 4.2, 0.1)
+    T = st.slider("🌡️ Температура T (K)", 0.1, 20.0, 4.0, 0.1)
     
     # Определение состояния
     is_superconductor = (T < T_C)
     if is_superconductor:
-        st.success(f"⚡️ Надпровідний стан: T={T}K < T_c={T_C}K")
-        N_S = N_0 * (1 - (T / T_C)  4),
+        st.success(f"⚡ Надпровідний стан: T={T}K < T_c={T_C}K")
+        N_S = N_0 * (1 - (T / T_C) ** 4)
         K_COEFF = (N_S * E_CHARGE**2) / M_ELECTRON
         st.metric("Константа електронного відгуку K", f"{K_COEFF:.2e}")
     else:
@@ -39,7 +39,7 @@ with st.sidebar:
     
     # Начальный ток
     J_0 = st.number_input("➡️ Початкова густина струму j₀ (А/м²)", 
-                         min_value=0.0, max_value=1e11, value=0.0, step=1e6)
+                         min_value=0.0, max_value=1e11, value=1e9, step=1e8)
     
     # Тип поля
     st.subheader("📊 Тип зовнішнього поля")
@@ -79,22 +79,21 @@ with st.sidebar:
                 J_ARRAY = J_0 + (K_COEFF * E_0 / OMEGA) * (1 - np.cos(OMEGA * T_ARRAY))
                 formula_label = r'$j(t) = j_0 + \frac{K E_0}{\omega} (1 - \cos(\omega t))$'
         else:
-         tau_T = tau_temperature_dependence(T)
-        sigma = (N_0 * E_CHARGE**2 * tau_T) / M_ELECTRON
-        if "Постійне" in field_type:
-        J_ARRAY = J_0 * np.exp(-T_ARRAY / tau_T) + sigma * E_0 * (1 - np.exp(-T_ARRAY / tau_T))
-        formula_label = r'$j(t) = j_0 e^{-t/\tau(T)} + \sigma(T) E_0 (1 - e^{-t/\tau(T)})$'
-    elif "Лінійне" in field_type:
-        J_ARRAY = J_0 * np.exp(-T_ARRAY / tau_T) + sigma * A * (T_ARRAY - tau_T * (1 - np.exp(-T_ARRAY / tau_T)))
-        formula_label = r'$j(t) = j_0 e^{-t/\tau(T)} + \sigma(T) a [t - \tau(T)(1 - e^{-t/\tau(T)})]$'
-    else:  # Синусоїдальне
-        phase_shift = np.arctan(OMEGA * tau_T)
-        amplitude_factor = sigma / np.sqrt(1 + (OMEGA * tau_T)**2)
-        J_ST = E_0 * amplitude_factor * np.sin(OMEGA * T_ARRAY - phase_shift)
-        C = J_0 - E_0 * amplitude_factor * np.sin(-phase_shift)
-        J_TR = C * np.exp(-T_ARRAY / tau_T)
-        J_ARRAY = J_TR + J_ST
-        formula_label = r'$j(t) = j_{\text{tr}}(t) + j_{\text{st}}(t)$'
+            sigma = (N_0 * E_CHARGE**2 * TAU) / M_ELECTRON
+            if "Постійне" in field_type:
+                J_ARRAY = J_0 * np.exp(-T_ARRAY / TAU) + sigma * E_0 * (1 - np.exp(-T_ARRAY / TAU))
+                formula_label = r'$j(t) = j_0 e^{-t/\tau} + \sigma E_0 (1 - e^{-t/\tau})$'
+            elif "Лінійне" in field_type:
+                J_ARRAY = J_0 * np.exp(-T_ARRAY / TAU) + sigma * A * (T_ARRAY - TAU * (1 - np.exp(-T_ARRAY / TAU)))
+                formula_label = r'$j(t) = j_0 e^{-t/\tau} + \sigma a [t - \tau(1 - e^{-t/\tau})]$'
+            else:  # Синусоидальное
+                phase_shift = np.arctan(OMEGA * TAU)
+                amplitude_factor = sigma / np.sqrt(1 + (OMEGA * TAU)**2)
+                J_ST = E_0 * amplitude_factor * np.sin(OMEGA * T_ARRAY - phase_shift)
+                C = J_0 - E_0 * amplitude_factor * np.sin(-phase_shift)
+                J_TR = C * np.exp(-T_ARRAY / TAU)
+                J_ARRAY = J_TR + J_ST
+                formula_label = r'$j(t) = j_{\text{tr}}(t) + j_{\text{st}}(t)$'
         
         # Сохраняем график
         new_run = {
@@ -108,7 +107,7 @@ with st.sidebar:
         st.session_state.simulation_runs.append(new_run)
         st.success(f"✅ Графік #{len(st.session_state.simulation_runs)} додано!")
     
-    if st.button("🗑 Очистити всі графіки"):
+    if st.button("🗑️ Очистити всі графіки"):
         st.session_state.simulation_runs = []
         st.success("✅ Всі графіки очищено!")
 
@@ -151,20 +150,11 @@ else:
 # --- ИНФОРМАЦИЯ ---
 with st.expander("ℹ️ Інструкція"):
     st.markdown("""
-    **Як користуватися:
+    **Як користуватися:**
     1. Встановіть параметри в боковій панелі
-    2. Натисніть \"➕ Додати поточний графік\"
+    2. Натисніть **\"➕ Додати поточний графік\"**
     3. Змініть параметри і додайте ще графіки для порівняння
-    4. Видаліть графіки кнопкою \"🗑 Очистити всі графіки\"
+    4. Видаліть графіки кнопкою **\"🗑️ Очистити всі графіки\"**
     
-    Порада: Спробуйте порівняти T=4K (надпровідник) та T=10K (звичайний стан)!
-    """)
-# --- ИНФОРМАЦИЯ ---
-with st.expander("ℹ️ Довідка"):
-    st.markdown("""
-    Фізичні принципи:
-    - Надпровідник: Рівняння Лондонів - струм росте без опору.
-    - Звичайний метал: Модель Друде - струм виходить на стаціонарний рівень.
-    
-    Параметри за замовчуванням подібні до Ніобію (Nb).  T=4.2К - температура кипіння рідкого Гелію.
+    **Порада:** Спробуйте порівняти T=4K (надпровідник) та T=10K (метал)!
     """)

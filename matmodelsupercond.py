@@ -79,21 +79,22 @@ with st.sidebar:
                 J_ARRAY = J_0 + (K_COEFF * E_0 / OMEGA) * (1 - np.cos(OMEGA * T_ARRAY))
                 formula_label = r'$j(t) = j_0 + \frac{K E_0}{\omega} (1 - \cos(\omega t))$'
         else:
-            sigma = (N_0 * E_CHARGE**2 * TAU) / M_ELECTRON
-            if "Постійне" in field_type:
-                J_ARRAY = J_0 * np.exp(-T_ARRAY / TAU) + sigma * E_0 * (1 - np.exp(-T_ARRAY / TAU))
-                formula_label = r'$j(t) = j_0 e^{-t/\tau} + \sigma E_0 (1 - e^{-t/\tau})$'
-            elif "Лінійне" in field_type:
-                J_ARRAY = J_0 * np.exp(-T_ARRAY / TAU) + sigma * A * (T_ARRAY - TAU * (1 - np.exp(-T_ARRAY / TAU)))
-                formula_label = r'$j(t) = j_0 e^{-t/\tau} + \sigma a [t - \tau(1 - e^{-t/\tau})]$'
-            else:  # Синусоидальное
-                phase_shift = np.arctan(OMEGA * TAU)
-                amplitude_factor = sigma / np.sqrt(1 + (OMEGA * TAU)**2)
-                J_ST = E_0 * amplitude_factor * np.sin(OMEGA * T_ARRAY - phase_shift)
-                C = J_0 - E_0 * amplitude_factor * np.sin(-phase_shift)
-                J_TR = C * np.exp(-T_ARRAY / TAU)
-                J_ARRAY = J_TR + J_ST
-                formula_label = r'$j(t) = j_{\text{tr}}(t) + j_{\text{st}}(t)$'
+    tau_T = tau_temperature_dependence(T)
+    sigma = (N_0 * E_CHARGE**2 * tau_T) / M_ELECTRON
+    if "Постійне" in field_type:
+        J_ARRAY = J_0 * np.exp(-T_ARRAY / tau_T) + sigma * E_0 * (1 - np.exp(-T_ARRAY / tau_T))
+        formula_label = r'$j(t) = j_0 e^{-t/\tau(T)} + \sigma(T) E_0 (1 - e^{-t/\tau(T)})$'
+    elif "Лінійне" in field_type:
+        J_ARRAY = J_0 * np.exp(-T_ARRAY / tau_T) + sigma * A * (T_ARRAY - tau_T * (1 - np.exp(-T_ARRAY / tau_T)))
+        formula_label = r'$j(t) = j_0 e^{-t/\tau(T)} + \sigma(T) a [t - \tau(T)(1 - e^{-t/\tau(T)})]$'
+    else:  # Синусоїдальне
+        phase_shift = np.arctan(OMEGA * tau_T)
+        amplitude_factor = sigma / np.sqrt(1 + (OMEGA * tau_T)**2)
+        J_ST = E_0 * amplitude_factor * np.sin(OMEGA * T_ARRAY - phase_shift)
+        C = J_0 - E_0 * amplitude_factor * np.sin(-phase_shift)
+        J_TR = C * np.exp(-T_ARRAY / tau_T)
+        J_ARRAY = J_TR + J_ST
+        formula_label = r'$j(t) = j_{\text{tr}}(t) + j_{\text{st}}(t)$'
         
         # Сохраняем график
         new_run = {

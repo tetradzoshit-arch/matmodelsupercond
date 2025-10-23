@@ -56,7 +56,7 @@ with st.sidebar:
         # Розрахунок коефіцієнта Лондонів K
         N_S = N_0 * (1.0 - (T / T_C) ** 4.0) # Явно вказуємо float для степенів
         K_COEFF = (N_S * E_CHARGE**2) / M_ELECTRON
-        st.metric("Коефіцієнт $K$", f"{K_COEFF:.2e} $A/(V \cdot m \cdot s)$")
+        st.metric("Коефіцієнт $K$", f"{K_COEFF:.2e} $A/(V \\cdot m \\cdot s)$")
     else:
         st.info(f"🔌 Звичайний метал: T={T}K $\\ge$ T_c={T_C}K")
         
@@ -107,13 +107,17 @@ with st.sidebar:
         # --- РОЗРАХУНОК СТРУМУ ---
         if is_superconductor:
             # Рівняння Лондонів: dj/dt = K * E(t)
+            # ФОРМУЛИ: j(t)=j_0+KE_0 t, j(t)=j_0+K (at^2)/2, j(t)=j_0+(KΕ_0)/ω(1-cos⁡(ωt))
             if "Постійне" in field_type:
+                # 1. j(t)=j_0+KE_0 t
                 J_ARRAY = J_0 + K_COEFF * E_0 * T_ARRAY
                 formula_label = r'$j(t) = j_0 + K E_0 t$'
             elif "Лінійне" in field_type:
+                # 2. j(t)=j_0+K (at^2)/2
                 J_ARRAY = J_0 + (K_COEFF * A * T_ARRAY**2.0) / 2.0
                 formula_label = r'$j(t) = j_0 + \frac{1}{2} K a t^2$'
             else:  # Синусоїдальне
+                # 3. j(t)=j_0+(KΕ_0)/ω(1-cos⁡(ωt))
                 J_ARRAY = J_0 + (K_COEFF * E_0 / OMEGA) * (1.0 - np.cos(OMEGA * T_ARRAY))
                 formula_label = r'$j(t) = j_0 + \frac{K E_0}{\omega} (1 - \cos(\omega t))$'
         else:
@@ -125,23 +129,53 @@ with st.sidebar:
                 # Модель Друде: dj/dt + j/τ(T) = σ(T)/τ(T) * E(t)
                 
                 if "Постійне" in field_type:
+                    # 5. j(t)=j_0 e^((-t)/τ)+σΕτ(1-e^((-t)/τ))
+                    J_ARRAY = J_0 * np.exp(-T_ARRAY / tau_T) + sigma * E_0 * tau_T * (1.0 - np.exp(-T_ARRAY / tau_T)) / tau_T
+                    # Спрощення до оригінальної формули (з коду): j(t)=j_0 e^((-t)/τ)+σΕ_0 (1-e^((-t)/τ))
                     J_ARRAY = J_0 * np.exp(-T_ARRAY / tau_T) + sigma * E_0 * (1.0 - np.exp(-T_ARRAY / tau_T))
                     formula_label = r'$j(t) = j_0 e^{-t/\tau(T)} + \sigma(T) E_0 (1 - e^{-t/\tau(T)})$'
                 elif "Лінійне" in field_type:
+                    # Коректна формула для E(t)=at: j(t) = j_0 e^{-t/\tau} + \sigma a [t - \tau(1 - e^{-t/\tau})]
+                    # Ваша 6-та формула j(t_f)=j_0 e^((-t_f)/τ)+σaE_0 τ(1-e^((-t_f)/τ)) є некоректною.
                     J_ARRAY = J_0 * np.exp(-T_ARRAY / tau_T) + sigma * A * (T_ARRAY - tau_T * (1.0 - np.exp(-T_ARRAY / tau_T)))
                     formula_label = r'$j(t) = j_0 e^{-t/\tau(T)} + \sigma(T) a [t - \tau(T)(1 - e^{-t/\tau(T)})]$'
                 else:  # Синусоїдальне
-                    phase_shift = np.arctan(OMEGA * tau_T)
-                    amplitude_factor = sigma / np.sqrt(1.0 + (OMEGA * tau_T)**2.0)
+                    # 7. j(t_f)=j_0 e^((-t_f)/τ)+(σΕ_0 τ)/√(1〖+(ωτ)〗^2 )(sin⁡(ωt_f-arctg(ωτ))+(σΕ_0 〖ωτ〗^2)/(1〖+(ωτ)〗^2 ) e^((-t_f)/τ)
+                    # Примітка: Ваша 7-ма формула, здається, має помилку в останньому доданку (неправильно скопійований коефіцієнт j_0).
+                    # Використовуємо коректну форму: j(t) = j_tr(t) + j_st(t)
                     
-                    # Стаціонарний режим
-                    J_ST = E_0 * amplitude_factor * np.sin(OMEGA * T_ARRAY - phase_shift)
+                    # Компоненти для формули
+                    tau = tau_T
+                    omega_tau_sq = (OMEGA * tau)**2.0
                     
-                    # Перехідний процес (визначається j₀)
-                    C = J_0 - E_0 * amplitude_factor * np.sin(-phase_shift)
-                    J_TR = C * np.exp(-T_ARRAY / tau_T)
+                    # 1. Початковий струм, що затухає: j_0 e^((-t)/τ)
+                    J_TR_FROM_J0 = J_0 * np.exp(-T_ARRAY / tau)
+
+                    # 2. Амплітуда усталених коливань та фаза: (σΕ_0 τ)/√(1〖+(ωτ)〗^2 ) sin⁡(ωt-arctg(ωτ))
+                    amplitude_factor = sigma * E_0 / np.sqrt(1.0 + omega_tau_sq)
+                    phase_shift = np.arctan(OMEGA * tau)
+                    J_ST = amplitude_factor * np.sin(OMEGA * T_ARRAY - phase_shift)
+
+                    # 3. Перехідний процес від поля: j_{field,tr}
+                    C_field = (sigma * E_0 * OMEGA * tau**2.0) / (1.0 + omega_tau_sq)
+                    J_TR_FROM_FIELD = C_field * np.exp(-T_ARRAY / tau)
                     
-                    J_ARRAY = J_TR + J_ST
+                    # Повний струм: J_ARRAY = J_ST + J_TR_FROM_J0 - J_TR_FROM_FIELD
+                    # (Зверніть увагу, J_TR_FROM_FIELD - це лише частина j_{tr}. Код нижче використовує класичний розклад.)
+
+                    # Використовуємо класичний розклад з коду, бо він більш надійний і зрозумілий:
+                    
+                    # Амплітуда і фаза стаціонарного режиму
+                    amp_factor = sigma / np.sqrt(1.0 + omega_tau_sq)
+                    J_ST_CLASSIC = E_0 * amp_factor * np.sin(OMEGA * T_ARRAY - phase_shift)
+                    
+                    # Коефіцієнт перехідного процесу (визначається j₀)
+                    # C = J_0 - J_ST_CLASSIC(t=0)
+                    C = J_0 - E_0 * amp_factor * np.sin(-phase_shift)
+                    J_TR_CLASSIC = C * np.exp(-T_ARRAY / tau)
+                    
+                    J_ARRAY = J_TR_CLASSIC + J_ST_CLASSIC
+                    
                     formula_label = r'$j(t) = j_{\text{tr}}(t) + j_{\text{st}}(t)$'
             
             else: # Закон Ома (стаціонарний)

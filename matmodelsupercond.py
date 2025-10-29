@@ -96,81 +96,74 @@ with st.sidebar:
 
     # --- КНОПКИ ДЛЯ УПРАВЛЕНИЯ ГРАФИКАМИ ---
     st.subheader("📈 Управління графіками") 
-    if st.button("➕ Додати поточний графік"):
-        # Розміри розрахунків
-        if "Синусоїдальне" in field_type and not is_superconductor:
-            # Для синусоїдального поля в металі - показуємо кілька періодів
-            T_END = 3 * (2.0 * np.pi / OMEGA)  # 3 періоди
-        else:
-            T_END = 1e-9  # 1 наносекунда для інших випадків
+    
+    # ВИЗНАЧЕННЯ T_END ПЕРЕД ВИКОРИСТАННЯМ
+    if "Синусоїдальне" in field_type and not is_superconductor:
+        # Для синусоїдального поля в металі - показуємо кілька періодів
+        T_END = 3 * (2.0 * np.pi / OMEGA)  # 3 періоди
+    else:
+        T_END = 1e-9  # 1 наносекунда для інших випадків
     
     T_ARRAY = np.linspace(0.0, T_END, 1000)
     J_ARRAY = np.zeros_like(T_ARRAY)
-    formula_label
+    formula_label = ""
         
-    # --- РОЗРАХУНОК СТРУМУ ---
-if is_superconductor:
-    # Рівняння Лондонів: dj/dt = K * E(t)
-    # ФОРМУЛИ: j(t)=j_0+KE_0 t, j(t)=j_0+K (at^2)/2, j(t)=j_0+(KΕ_0)/ω(1-cos⁡(ωt))
-    if "Постійне" in field_type:
-        # 1. j(t)=j_0+KE_0 t
-        J_ARRAY = J_0 + K_COEFF * E_0 * T_ARRAY
-        formula_label = r'$j(t) = j_0 + K E_0 t$'
-    elif "Лінійне" in field_type:
-        # 2. j(t)=j_0+K (at^2)/2
-        J_ARRAY = J_0 + (K_COEFF * A * T_ARRAY**2.0) / 2.0
-        formula_label = r'$j(t) = j_0 + \frac{1}{2} K a t^2$'
-    else:  # Синусоїдальне
-        # 3. j(t)=j_0+(KΕ_0)/ω(1-cos⁡(ωt))
-        J_ARRAY = J_0 + (K_COEFF * E_0 / OMEGA) * (1.0 - np.cos(OMEGA * T_ARRAY))
-        formula_label = r'$j(t) = j_0 + \frac{K E_0}{\omega} (1 - \cos(\omega t))$'
-else:
-    # ЗВИЧАЙНИЙ МЕТАЛ
-    tau_T = tau_temperature_dependence(T) 
-    sigma = (N_0 * E_CHARGE**2.0 * tau_T) / M_ELECTRON
+    if st.button("➕ Додати поточний графік"):
+        # --- РОЗРАХУНОК СТРУМУ ---
+        if is_superconductor:
+            # Рівняння Лондонів: dj/dt = K * E(t)
+            if "Постійне" in field_type:
+                # 1. j(t)=j_0+KE_0 t
+                J_ARRAY = J_0 + K_COEFF * E_0 * T_ARRAY
+                formula_label = r'$j(t) = j_0 + K E_0 t$'
+            elif "Лінійне" in field_type:
+                # 2. j(t)=j_0+K (at^2)/2
+                J_ARRAY = J_0 + (K_COEFF * A * T_ARRAY**2.0) / 2.0
+                formula_label = r'$j(t) = j_0 + \frac{1}{2} K a t^2$'
+            else:  # Синусоїдальне
+                # 3. j(t)=j_0+(KΕ_0)/ω(1-cos⁡(ωt))
+                J_ARRAY = J_0 + (K_COEFF * E_0 / OMEGA) * (1.0 - np.cos(OMEGA * T_ARRAY))
+                formula_label = r'$j(t) = j_0 + \frac{K E_0}{\omega} (1 - \cos(\omega t))$'
+        else:
+            # ЗВИЧАЙНИЙ МЕТАЛ
+            tau_T = tau_temperature_dependence(T) 
+            sigma = (N_0 * E_CHARGE**2.0 * tau_T) / M_ELECTRON
 
-    if metal_model == "Модель Друде (з перехідним процесом)":
-        # Модель Друде: dj/dt + j/τ(T) = σ(T)/τ(T) * E(t)
-        
-        if "Постійне" in field_type:
-            # j(t)=j_0 e^((-t)/τ)+σΕτ(1-e^((-t)/τ))
-            J_ARRAY = J_0 * np.exp(-T_ARRAY / tau_T) + sigma * E_0 * tau_T * (1.0 - np.exp(-T_ARRAY / tau_T)) / tau_T
-            # Спрощення до оригінальної формули (з коду): j(t)=j_0 e^((-t)/τ)+σΕ_0 (1-e^((-t)/τ))
-            J_ARRAY = J_0 * np.exp(-T_ARRAY / tau_T) + sigma * E_0 * (1.0 - np.exp(-T_ARRAY / tau_T))
-            formula_label = r'$j(t) = j_0 e^{-t/\tau(T)} + \sigma(T) E_0 (1 - e^{-t/\tau(T)})$'
-        elif "Лінійне" in field_type:
-            #формула для E(t)=at: j(t) = j_0 e^{-t/\tau} + \sigma a [t - \tau(1 - e^{-t/\tau})]
-            J_ARRAY = J_0 * np.exp(-T_ARRAY / tau_T) + sigma * A * (T_ARRAY - tau_T * (1.0 - np.exp(-T_ARRAY / tau_T)))
-            formula_label = r'$j(t) = j_0 e^{-t/\tau(T)} + \sigma(T) a [t - \tau(T)(1 - e^{-t/\tau(T)})]$'
-        else:  # Синусоїдальне
-            # КОРЕКТНА формула для моделі Д
-            tau = tau_T
-            omega_tau_sq = (OMEGA * tau)**2.0
+            if metal_model == "Модель Друде (з перехідним процесом)":
+                # Модель Друде: dj/dt + j/τ(T) = σ(T)/τ(T) * E(t)
+                
+                if "Постійне" in field_type:
+                    J_ARRAY = J_0 * np.exp(-T_ARRAY / tau_T) + sigma * E_0 * (1.0 - np.exp(-T_ARRAY / tau_T))
+                    formula_label = r'$j(t) = j_0 e^{-t/\tau(T)} + \sigma(T) E_0 (1 - e^{-t/\tau(T)})$'
+                elif "Лінійне" in field_type:
+                    J_ARRAY = J_0 * np.exp(-T_ARRAY / tau_T) + sigma * A * (T_ARRAY - tau_T * (1.0 - np.exp(-T_ARRAY / tau_T)))
+                    formula_label = r'$j(t) = j_0 e^{-t/\tau(T)} + \sigma(T) a [t - \tau(T)(1 - e^{-t/\tau(T)})]$'
+                else:  # Синусоїдальне
+                    tau = tau_T
+                    omega_tau_sq = (OMEGA * tau)**2.0
 
-            # Амплітуда і фаза стаціонарного режиму
-            amp_factor = sigma * tau / np.sqrt(1.0 + omega_tau_sq)  # ДОДАНО tau!
-            phase_shift = np.arctan(OMEGA * tau)
-            J_ST_CLASSIC = E_0 * amp_factor * np.sin(OMEGA * T_ARRAY - phase_shift)
+                    # Амплітуда і фаза стаціонарного режиму
+                    amp_factor = sigma * tau / np.sqrt(1.0 + omega_tau_sq)
+                    phase_shift = np.arctan(OMEGA * tau)
+                    J_ST_CLASSIC = E_0 * amp_factor * np.sin(OMEGA * T_ARRAY - phase_shift)
 
-            # Перехідна складова
-            C = J_0 - E_0 * amp_factor * np.sin(-phase_shift)
-            J_TR_CLASSIC = C * np.exp(-T_ARRAY / tau)
+                    # Перехідна складова
+                    C = J_0 - E_0 * amp_factor * np.sin(-phase_shift)
+                    J_TR_CLASSIC = C * np.exp(-T_ARRAY / tau)
 
-            J_ARRAY = J_TR_CLASSIC + J_ST_CLASSIC
-
-            formula_label = r'$j(t) = j_{\text{tr}}(t) + j_{\text{st}}(t)$'
-            
-    else: # Закон Ома (стаціонарний)
-        # Закон Ома: j(t) = σ(T) * E(t). j₀ ігнорується.
-        if "Постійне" in field_type:
-            J_ARRAY = sigma * E_0 * np.ones_like(T_ARRAY)
-            formula_label = r'$j(t) = \sigma(T) E_0$'
-        elif "Лінійне" in field_type:
-            J_ARRAY = sigma * A * T_ARRAY
-            formula_label = r'$j(t) = \sigma(T) a t$'
-        else:  # Синусоїдальне
-            J_ARRAY = sigma * E_0 * np.sin(OMEGA * T_ARRAY)
-            formula_label = r'$j(t) = \sigma(T) E_0 \sin(\omega t)$'
+                    J_ARRAY = J_TR_CLASSIC + J_ST_CLASSIC
+                    formula_label = r'$j(t) = j_{\text{tr}}(t) + j_{\text{st}}(t)$'
+                    
+            else: # Закон Ома (стаціонарний)
+                if "Постійне" in field_type:
+                    J_ARRAY = sigma * E_0 * np.ones_like(T_ARRAY)
+                    formula_label = r'$j(t) = \sigma(T) E_0$'
+                elif "Лінійне" in field_type:
+                    J_ARRAY = sigma * A * T_ARRAY
+                    formula_label = r'$j(t) = \sigma(T) a t$'
+                else:  # Синусоїдальне
+                    J_ARRAY = sigma * E_0 * np.sin(OMEGA * T_ARRAY)
+                    formula_label = r'$j(t) = \sigma(T) E_0 \sin(\omega t)$'
             
         # Зберігаємо графік
         new_run = {
@@ -240,7 +233,7 @@ with st.expander("ℹ️ Інструкція"):
     
     **Порада:** Порівняйте Модель Друде (яка має експоненціальне зростання) та Закон Ома (який миттєво досягає стаціонарного значення) при $T=15K$ і постійному полі.
     """)
-# --- ИНФОРМАЦИЯ ---
+
 with st.expander("ℹ️ Довідка"):
     st.markdown("""
     **Фізичні принципи:**

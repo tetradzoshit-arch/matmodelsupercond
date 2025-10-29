@@ -47,70 +47,87 @@ def create_pdf_report(data):
     try:
         from reportlab.lib.pagesizes import A4
         from reportlab.pdfgen import canvas
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
         import io
         
         buffer = io.BytesIO()
         pdf = canvas.Canvas(buffer, pagesize=A4)
         
-        # Використовуємо тільки базові шрифти
-        pdf.setFont("Helvetica", 16)
-        pdf.drawString(100, 800, "REPORT ON CURRENT MODELING")
+        # Встановлюємо шрифт, що підтримує кирилицю
+        try:
+            # Спробуємо використати DejaVu Sans - він часто встановлений
+            pdfmetrics.registerFont(TTFont('DejaVuSans', 'DejaVuSans.ttf'))
+            font_name = 'DejaVuSans'
+        except:
+            try:
+                # Спробуємо Arial
+                pdfmetrics.registerFont(TTFont('Arial', 'arial.ttf'))
+                font_name = 'Arial'
+            except:
+                # Якщо нічого не вийшло - використовуємо Helvetica для латиниці
+                font_name = 'Helvetica'
         
-        pdf.setFont("Helvetica", 12)
+        # Заголовок
+        pdf.setFont(font_name, 16)
+        pdf.drawString(100, 800, "ЗВІТ З МОДЕЛЮВАННЯ СТРУМУ")
+        
+        pdf.setFont(font_name, 12)
         y_position = 750
         
-        # Параметри моделювання (англійською)
-        pdf.drawString(100, y_position, "Simulation Parameters:")
+        # Параметри моделювання
+        pdf.drawString(100, y_position, "Параметри моделювання:")
         y_position -= 20
-        pdf.drawString(120, y_position, f"- Field type: {data['field_type']}")
+        pdf.drawString(120, y_position, f"- Тип поля: {data['field_type']}")
         y_position -= 20
-        pdf.drawString(120, y_position, f"- Field strength E: {data['E0']} V/m")
+        pdf.drawString(120, y_position, f"- Напруженість поля E: {data['E0']} В/м")
         y_position -= 20
-        pdf.drawString(120, y_position, f"- Initial current j: {data['j0']} A/m2")
+        pdf.drawString(120, y_position, f"- Початковий струм j: {data['j0']} А/м²")
         y_position -= 20
-        pdf.drawString(120, y_position, f"- Simulation time: {data['t_max']} s")
+        pdf.drawString(120, y_position, f"- Час моделювання: {data['t_max']} с")
         y_position -= 20
-        pdf.drawString(120, y_position, f"- Temperature: {data.get('T_common', data.get('T_super', data.get('T_normal', 'N/A')))} K")
+        pdf.drawString(120, y_position, f"- Температура: {data.get('T_common', data.get('T_super', data.get('T_normal', 'N/A')))} K")
         y_position -= 30
         
-        # Порівняльна таблиця (англійською)
-        pdf.drawString(100, y_position, "Comparison Table:")
+        # Порівняльна таблиця
+        pdf.drawString(100, y_position, "Порівняльна таблиця:")
         y_position -= 20
         
-        comparison_data = [
-            ["Characteristic", "Superconductor", "Normal Metal"],
-            ["Current behavior", "Unlimited growth", "Exponential saturation"],
-            ["Resistance", "Absent", "Present"],
-            ["Phase shift", "π/2 (90°)", "arctg(ωτ)"],
-            ["Stationary state", "Not reached", "Reached (j = σE)"],
-            ["Relaxation time", "Not important", "Key parameter"]
+        # Дані для таблиці
+        table_data = [
+            ["Характеристика", "Надпровідник", "Звичайний стан"],
+            ["Поведінка струму", "Лінійне зростання", "Експоненційне насичення"],
+            ["Опір", "Відсутній", "Присутній"],
+            ["Фазовий зсув", "π/2 (90°)", "Залежить від частоти"],
+            ["Стаціонарний стан", "Не досягається", "Досягається"],
+            ["Час релаксації", "Не важливий", "Ключовий параметр"]
         ]
         
-        # Малюємо просту таблицю
+        # Проста таблиця
         col_widths = [200, 150, 150]
         row_height = 20
         
         # Заголовок таблиці
-        pdf.setFillColorRGB(0.8, 0.8, 1.0)  # Світло-синій фон
+        pdf.setFillColorRGB(0.8, 0.8, 1.0)
         pdf.rect(100, y_position - row_height, sum(col_widths), row_height, fill=1)
-        pdf.setFillColorRGB(0, 0, 0)  # Чорний текст
+        pdf.setFillColorRGB(0, 0, 0)
         
         x_pos = 100
-        for i, header in enumerate(comparison_data[0]):
+        for i, header in enumerate(table_data[0]):
             pdf.drawString(x_pos + 5, y_position - 15, header)
             x_pos += col_widths[i]
         
         y_position -= row_height
         
         # Дані таблиці
-        for row_idx, row in enumerate(comparison_data[1:]):
+        for row_idx, row in enumerate(table_data[1:]):
             if row_idx % 2 == 0:
-                pdf.setFillColorRGB(0.95, 0.95, 0.95)  # Світло-сірий фон
+                pdf.setFillColorRGB(0.95, 0.95, 0.95)
             else:
-                pdf.setFillColorRGB(1, 1, 1)  # Білий фон
+                pdf.setFillColorRGB(1, 1, 1)
             
             pdf.rect(100, y_position - row_height, sum(col_widths), row_height, fill=1)
-            pdf.setFillColorRGB(0, 0, 0)  # Чорний текст
+            pdf.setFillColorRGB(0, 0, 0)
             
             x_pos = 100
             for i, cell in enumerate(row):
@@ -122,9 +139,9 @@ def create_pdf_report(data):
         y_position -= 20
         
         # Висновки
-        pdf.drawString(100, y_position, "Conclusions:")
+        pdf.drawString(100, y_position, "Висновки:")
         y_position -= 20
-        conclusion = "Comparative analysis shows fundamental difference in current dynamics between superconducting and normal states."
+        conclusion = "Порівняльний аналіз показує фундаментальну різницю у динаміці струму."
         pdf.drawString(120, y_position, conclusion)
         
         pdf.save()
@@ -132,24 +149,23 @@ def create_pdf_report(data):
         return buffer
         
     except Exception as e:
-        # Резервний варіант
+        # Резервний варіант - текстовий файл з українською
         buffer = BytesIO()
         report_text = f"""
-        REPORT ON CURRENT MODELING
+        ЗВІТ З МОДЕЛЮВАННЯ СТРУМУ
         
-        Parameters:
-        - Field type: {data['field_type']}
-        - Field strength E: {data['E0']} V/m
-        - Initial current j: {data['j0']} A/m2
-        - Simulation time: {data['t_max']} s
-        - Temperature: {data.get('T_common', data.get('T_super', data.get('T_normal', 'N/A')))} K
+        Параметри моделювання:
+        - Тип поля: {data['field_type']}
+        - Напруженість поля E: {data['E0']} В/м
+        - Початковий струм j: {data['j0']} А/м²
+        - Час моделювання: {data['t_max']} с
+        - Температура: {data.get('T_common', data.get('T_super', data.get('T_normal', 'N/A')))} K
         
-        Conclusions: Comparative analysis shows fundamental difference in current dynamics.
+        Висновки: Порівняльний аналіз показує фундаментальну різницю у динаміці струму.
         """
         buffer.write(report_text.encode('utf-8'))
         buffer.seek(0)
         return buffer
-
 def main():
     st.set_page_config(page_title="Моделювання струму", layout="wide")
     st.title("🎛️ Моделювання динаміки струму: надпровідник vs звичайний метал")

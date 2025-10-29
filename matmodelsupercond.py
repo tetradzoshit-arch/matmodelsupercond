@@ -3,21 +3,25 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 
-# --- ФІЗИЧНІ КОНСТАНТИ ДЛЯ НІОБІЮ ---
+# --- ФІЗИЧНІ КОНСТАНТИ ---
 E_CHARGE = 1.6e-19
 M_ELECTRON = 9.1e-31
-N_0 = 5.0e28
+N_0 = 1.0e29              # Загальна концентрація
 T_C = 9.2
-TAU_IMP = 1.0e-10
-A_PHONON = 1.0e8
+TAU_IMP = 5.0e-14         # Час релаксації на домішках
+A_PHONON = 3.0e8          # Коефіцієнт фононного розсіювання
 
 # --- ДОПОМІЖНІ ФУНКЦІЇ ---
 def tau_temperature_dependence(T):
-    if T <= 0.1:
-        return TAU_IMP
-    scattering_rate = (1 / TAU_IMP) + (A_PHONON * T**5)
+    """Правило Маттіссена: 1/τ(T) = 1/τ_imp + A·T^5"""
+    scattering_rate = (1.0 / TAU_IMP) + (A_PHONON * T**5)
     tau_T = 1.0 / scattering_rate
     return tau_T
+
+def calculate_superconducting_electrons(T):
+    """Концентрація надпровідних електронів: n_s = n_0 · (1 - (T/T_C)^4)"""
+    n_s = N_0 * (1.0 - (T / T_C)**4)
+    return n_s
 
 def find_peaks_simple(signal, prominence=0.1):
     peaks = []

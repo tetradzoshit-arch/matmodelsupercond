@@ -59,7 +59,7 @@ def analyze_current_direct(t_array, j_array, field_type, model_name, is_supercon
         peaks = find_peaks_simple(j_array, prominence=0.1)
         valleys = find_peaks_simple(-j_array, prominence=0.1)
         
-        def analyze_current_direct(t_array, j_array, field_type, model_name, is_superconductor):
+def analyze_current_direct(t_array, j_array, field_type, model_name, is_superconductor):
     """Прямий аналіз кривої струму без лінійної регресії"""
     analysis = {}
     

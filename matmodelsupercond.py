@@ -44,27 +44,37 @@ def calculate_normal_current(t, E_type, T, E0=1.0, a=1.0, omega=1.0, j0=0.0):
 
 def create_pdf_report(data):
     """Створення PDF звіту"""
-    buffer = BytesIO()
+    from reportlab.lib.pagesizes import letter
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.utils import ImageReader
+    import io
     
-    report_text = f"""
-    ЗВІТ З МОДЕЛЮВАННЯ СТРУМУ
-    =========================
+    buffer = io.BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=letter)
     
-    Параметри моделювання:
-    - Тип поля: {data['field_type']}
-    - Напруженість поля E₀: {data['E0']} В/м
-    - Початковий струм j₀: {data['j0']} А/м²
-    - Час моделювання: {data['t_max']} с
-    - Температура: {data.get('T_common', data.get('T_super', data.get('T_normal', 'N/A')))} K
+    # Заголовок
+    pdf.setFont("Helvetica-Bold", 16)
+    pdf.drawString(100, 750, "ЗВІТ З МОДЕЛЮВАННЯ СТРУМУ")
     
-    Результати:
-    - Надпровідник: {data.get('super_desc', 'N/A')}
-    - Звичайний метал: {data.get('normal_desc', 'N/A')}
+    # Параметри моделювання
+    pdf.setFont("Helvetica", 12)
+    pdf.drawString(100, 700, "Параметри моделювання:")
+    pdf.drawString(120, 680, f"- Тип поля: {data['field_type']}")
+    pdf.drawString(120, 660, f"- Напруженість поля E₀: {data['E0']} В/м")
+    pdf.drawString(120, 640, f"- Початковий струм j₀: {data['j0']} А/м²")
+    pdf.drawString(120, 620, f"- Час моделювання: {data['t_max']} с")
+    pdf.drawString(120, 600, f"- Температура: {data.get('T_common', data.get('T_super', data.get('T_normal', 'N/A')))} K")
     
-    Висновки: {data.get('conclusion', 'Порівняльний аналіз динаміки струму')}
-    """
+    # Результати
+    pdf.drawString(100, 560, "Результати:")
+    pdf.drawString(120, 540, f"- Надпровідник: {data.get('super_desc', 'N/A')}")
+    pdf.drawString(120, 520, f"- Звичайний метал: {data.get('normal_desc', 'N/A')}")
     
-    buffer.write(report_text.encode())
+    # Висновки
+    pdf.drawString(100, 480, "Висновки:")
+    pdf.drawString(120, 460, data.get('conclusion', 'Порівняльний аналіз динаміки струму'))
+    
+    pdf.save()
     buffer.seek(0)
     return buffer
 

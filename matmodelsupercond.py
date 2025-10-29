@@ -51,17 +51,38 @@ def create_pdf_report(data):
         from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
         from reportlab.lib import colors
         from reportlab.lib.units import cm
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
         import io
+        
+        # Реєстрація українського шрифту (якщо є) або використання стандартного
+        try:
+            # Спробуємо знайти стандартний шрифт, що підтримує кирилицю
+            pdfmetrics.registerFont(TTFont('Arial', 'arial.ttf'))
+            font_name = 'Arial'
+        except:
+            # Якщо не вдалося - використовуємо стандартний Helvetica
+            font_name = 'Helvetica'
         
         buffer = io.BytesIO()
         doc = SimpleDocTemplate(buffer, pagesize=A4)
         styles = getSampleStyleSheet()
+        
+        # Стиль для українського тексту
+        ukrainian_style = ParagraphStyle(
+            'Ukrainian',
+            parent=styles['Normal'],
+            fontName=font_name,
+            encoding='UTF-8'
+        )
+        
         story = []
         
         # Заголовок
         title_style = ParagraphStyle(
             'CustomTitle',
             parent=styles['Heading1'],
+            fontName=font_name,
             fontSize=16,
             spaceAfter=30,
             alignment=1
@@ -72,23 +93,22 @@ def create_pdf_report(data):
         # Параметри моделювання
         story.append(Paragraph("Параметри моделювання:", styles['Heading2']))
         params_data = [
-            ["Тип поля:", data['field_type']],
-            ["Напруженість поля E₀:", f"{data['E0']} В/м"],
-            ["Початковий струм j₀:", f"{data['j0']} А/м²"],
-            ["Час моделювання:", f"{data['t_max']} с"],
-            ["Температура:", f"{data.get('T_common', data.get('T_super', data.get('T_normal', 'N/A')))} K"]
+            ["<b>Тип поля:</b>", data['field_type']],
+            ["<b>Напруженість поля E₀:</b>", f"{data['E0']} В/м"],
+            ["<b>Початковий струм j₀:</b>", f"{data['j0']} А/м²"],
+            ["<b>Час моделювання:</b>", f"{data['t_max']} с"],
+            ["<b>Температура:</b>", f"{data.get('T_common', data.get('T_super', data.get('T_normal', 'N/A')))} K"]
         ]
         
-        params_table = Table(params_data, colWidths=[4*cm, 8*cm])
+        # Створюємо таблицю з параметрами
+        params_table = Table(params_data, colWidths=[5*cm, 7*cm])
         params_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.lightblue),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
             ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTNAME', (0, 0), (-1, -1), font_name),
             ('FONTSIZE', (0, 0), (-1, -1), 10),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('BACKGROUND', (0, 0), (-1, -1), colors.whitesmoke),
+            ('GRID', (0, 0), (-1, -1), 1, colors.grey)
         ]))
         story.append(params_table)
         story.append(Spacer(1, 20))
@@ -96,7 +116,7 @@ def create_pdf_report(data):
         # Порівняльна таблиця
         story.append(Paragraph("Порівняльна таблиця властивостей:", styles['Heading2']))
         comparison_data = [
-            ["Характеристика", "Надпровідник", "Звичайний стан"],
+            ["<b>Характеристика</b>", "<b>Надпровідник</b>", "<b>Звичайний стан</b>"],
             ["Поведінка струму в статичному полі", "Необмежене лінійне зростання", "Експоненційне насичення"],
             ["Наявність опору", "Відсутній", "Присутній"],
             ["Фазовий зсув у змінному полі", "π/2 (90°)", "arctg(ωτ) - залежить від частоти"],
@@ -109,12 +129,12 @@ def create_pdf_report(data):
             ('BACKGROUND', (0, 0), (-1, 0), colors.darkblue),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('FONTNAME', (0, 0), (-1, -1), font_name),
             ('FONTSIZE', (0, 0), (-1, -1), 9),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
             ('BACKGROUND', (0, 1), (-1, -1), colors.lightgrey),
             ('GRID', (0, 0), (-1, -1), 1, colors.black),
-            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.whitesmoke])
         ]))
         story.append(comp_table)
         story.append(Spacer(1, 20))
@@ -122,7 +142,7 @@ def create_pdf_report(data):
         # Висновки
         story.append(Paragraph("Висновки:", styles['Heading2']))
         conclusion_text = data.get('conclusion', 'Порівняльний аналіз показує фундаментальну різницю у динаміці струму між надпровідним та звичайним станами.')
-        conclusion = Paragraph(conclusion_text, styles['Normal'])
+        conclusion = Paragraph(conclusion_text, ukrainian_style)
         story.append(conclusion)
         
         doc.build(story)
@@ -134,14 +154,13 @@ def create_pdf_report(data):
         buffer = BytesIO()
         report_text = f"""
         ЗВІТ З МОДЕЛЮВАННЯ СТРУМУ
-        =========================
         
         Параметри моделювання:
-        - Тип поля: {data['field_type']}
-        - Напруженість поля E₀: {data['E0']} В/м
-        - Початковий струм j₀: {data['j0']} А/м²
-        - Час моделювання: {data['t_max']} с
-        - Температура: {data.get('T_common', data.get('T_super', data.get('T_normal', 'N/A')))} K
+        Тип поля: {data['field_type']}
+        Напруженість поля E₀: {data['E0']} В/м
+        Початковий струм j₀: {data['j0']} А/м²
+        Час моделювання: {data['t_max']} с
+        Температура: {data.get('T_common', data.get('T_super', data.get('T_normal', 'N/A')))} K
         
         Висновки: {data.get('conclusion', 'Порівняльний аналіз показує фундаментальну різницю у динаміці струму')}
         """

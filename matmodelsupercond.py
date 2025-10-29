@@ -218,6 +218,15 @@ with st.sidebar:
                 else:
                     J_ARRAY = sigma * E_0 * np.sin(OMEGA * T_ARRAY)
                     formula_label = r'$j(t) = \sigma(T) E_0 \sin(\omega t)$'
+                     # 🔍 ДОДАЙ ДЕБАГ ТУТ - ПІСЛЯ ВСІХ РОЗРАХУНКІВ J_ARRAY
+        st.write("🔍 **ДЕБАГ:**")
+        tau_T_debug = tau_temperature_dependence(T)
+        sigma_debug = (N_0 * E_CHARGE**2.0 * tau_T_debug) / M_ELECTRON
+        st.write(f"tau_T = {tau_T_debug:.2e} с")
+        st.write(f"sigma = {sigma_debug:.2e} См/м")
+        st.write(f"E_0 = {E_0} В/м")
+        st.write(f"Очікуваний струм = {sigma_debug * E_0:.2e} А/м²")
+        st.write(f"Фактичний струм = {np.max(J_ARRAY):.2e} А/м²")
         
         new_run = {
             'T': T, 'T_array': T_ARRAY * 1e9, 'J_array': J_ARRAY, 'formula': formula_label,
@@ -281,16 +290,4 @@ with st.expander("ℹ️ Інструкція"):
     - **Амплітуда E₀:** 1000-10000 В/м  
     - **Час моделювання:** 10-100 мкс
     """)
-    # Додай цей код на рядок 270
-st.write("🔍 **ДЕБАГ:**")
-tau_T_debug = tau_temperature_dependence(T)
-sigma_debug = (N_0 * E_CHARGE**2.0 * tau_T_debug) / M_ELECTRON
-st.write(f"tau_T = {tau_T_debug:.2e} с")
-st.write(f"sigma = {sigma_debug:.2e} См/м")
-st.write(f"E_0 = {E_0} В/м")
-st.write(f"Очікуваний струм = {sigma_debug * E_0:.2e} А/м²")
-st.write(f"Фактичний струм = {np.max(J_ARRAY):.2e} А/м²")
-
-# Тільки для синусоїдального поля
-if "Синусоїдальне" in field_type:
-    st.write(f"OMEGA = {OMEGA:.2e} рад/с")
+ 

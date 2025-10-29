@@ -43,126 +43,108 @@ def calculate_normal_current(t, E_type, T, E0=1.0, a=1.0, omega=1.0, j0=0.0):
         return transient + amplitude * np.sin(omega * t - phase_shift)
 
 def create_pdf_report(data):
-    """Створення PDF звіту з красивою таблицею"""
+    """Створення PDF звіту"""
     try:
         from reportlab.lib.pagesizes import A4
         from reportlab.pdfgen import canvas
-        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-        from reportlab.lib import colors
-        from reportlab.lib.units import cm
-        from reportlab.pdfbase import pdfmetrics
-        from reportlab.pdfbase.ttfonts import TTFont
         import io
         
-        # Реєстрація українського шрифту (якщо є) або використання стандартного
-        try:
-            # Спробуємо знайти стандартний шрифт, що підтримує кирилицю
-            pdfmetrics.registerFont(TTFont('Arial', 'arial.ttf'))
-            font_name = 'Arial'
-        except:
-            # Якщо не вдалося - використовуємо стандартний Helvetica
-            font_name = 'Helvetica'
-        
         buffer = io.BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=A4)
-        styles = getSampleStyleSheet()
+        pdf = canvas.Canvas(buffer, pagesize=A4)
         
-        # Стиль для українського тексту
-        ukrainian_style = ParagraphStyle(
-            'Ukrainian',
-            parent=styles['Normal'],
-            fontName=font_name,
-            encoding='UTF-8'
-        )
+        # Використовуємо тільки базові шрифти
+        pdf.setFont("Helvetica", 16)
+        pdf.drawString(100, 800, "REPORT ON CURRENT MODELING")
         
-        story = []
+        pdf.setFont("Helvetica", 12)
+        y_position = 750
         
-        # Заголовок
-        title_style = ParagraphStyle(
-            'CustomTitle',
-            parent=styles['Heading1'],
-            fontName=font_name,
-            fontSize=16,
-            spaceAfter=30,
-            alignment=1
-        )
-        title = Paragraph("ЗВІТ З МОДЕЛЮВАННЯ СТРУМУ", title_style)
-        story.append(title)
+        # Параметри моделювання (англійською)
+        pdf.drawString(100, y_position, "Simulation Parameters:")
+        y_position -= 20
+        pdf.drawString(120, y_position, f"- Field type: {data['field_type']}")
+        y_position -= 20
+        pdf.drawString(120, y_position, f"- Field strength E: {data['E0']} V/m")
+        y_position -= 20
+        pdf.drawString(120, y_position, f"- Initial current j: {data['j0']} A/m2")
+        y_position -= 20
+        pdf.drawString(120, y_position, f"- Simulation time: {data['t_max']} s")
+        y_position -= 20
+        pdf.drawString(120, y_position, f"- Temperature: {data.get('T_common', data.get('T_super', data.get('T_normal', 'N/A')))} K")
+        y_position -= 30
         
-        # Параметри моделювання
-        story.append(Paragraph("Параметри моделювання:", styles['Heading2']))
-        params_data = [
-            ["<b>Тип поля:</b>", data['field_type']],
-            ["<b>Напруженість поля E₀:</b>", f"{data['E0']} В/м"],
-            ["<b>Початковий струм j₀:</b>", f"{data['j0']} А/м²"],
-            ["<b>Час моделювання:</b>", f"{data['t_max']} с"],
-            ["<b>Температура:</b>", f"{data.get('T_common', data.get('T_super', data.get('T_normal', 'N/A')))} K"]
-        ]
+        # Порівняльна таблиця (англійською)
+        pdf.drawString(100, y_position, "Comparison Table:")
+        y_position -= 20
         
-        # Створюємо таблицю з параметрами
-        params_table = Table(params_data, colWidths=[5*cm, 7*cm])
-        params_table.setStyle(TableStyle([
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('FONTNAME', (0, 0), (-1, -1), font_name),
-            ('FONTSIZE', (0, 0), (-1, -1), 10),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-            ('BACKGROUND', (0, 0), (-1, -1), colors.whitesmoke),
-            ('GRID', (0, 0), (-1, -1), 1, colors.grey)
-        ]))
-        story.append(params_table)
-        story.append(Spacer(1, 20))
-        
-        # Порівняльна таблиця
-        story.append(Paragraph("Порівняльна таблиця властивостей:", styles['Heading2']))
         comparison_data = [
-            ["<b>Характеристика</b>", "<b>Надпровідник</b>", "<b>Звичайний стан</b>"],
-            ["Поведінка струму в статичному полі", "Необмежене лінійне зростання", "Експоненційне насичення"],
-            ["Наявність опору", "Відсутній", "Присутній"],
-            ["Фазовий зсув у змінному полі", "π/2 (90°)", "arctg(ωτ) - залежить від частоти"],
-            ["Стаціонарний стан", "Не досягається", "Досягається (j = σE)"],
-            ["Час релаксації", "Не визначає динаміку струму", "Ключовий параметр"]
+            ["Characteristic", "Superconductor", "Normal Metal"],
+            ["Current behavior", "Unlimited growth", "Exponential saturation"],
+            ["Resistance", "Absent", "Present"],
+            ["Phase shift", "π/2 (90°)", "arctg(ωτ)"],
+            ["Stationary state", "Not reached", "Reached (j = σE)"],
+            ["Relaxation time", "Not important", "Key parameter"]
         ]
         
-        comp_table = Table(comparison_data, colWidths=[5*cm, 5*cm, 5*cm])
-        comp_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.darkblue),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('FONTNAME', (0, 0), (-1, -1), font_name),
-            ('FONTSIZE', (0, 0), (-1, -1), 9),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.lightgrey),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
-        ]))
-        story.append(comp_table)
-        story.append(Spacer(1, 20))
+        # Малюємо просту таблицю
+        col_widths = [200, 150, 150]
+        row_height = 20
+        
+        # Заголовок таблиці
+        pdf.setFillColorRGB(0.8, 0.8, 1.0)  # Світло-синій фон
+        pdf.rect(100, y_position - row_height, sum(col_widths), row_height, fill=1)
+        pdf.setFillColorRGB(0, 0, 0)  # Чорний текст
+        
+        x_pos = 100
+        for i, header in enumerate(comparison_data[0]):
+            pdf.drawString(x_pos + 5, y_position - 15, header)
+            x_pos += col_widths[i]
+        
+        y_position -= row_height
+        
+        # Дані таблиці
+        for row_idx, row in enumerate(comparison_data[1:]):
+            if row_idx % 2 == 0:
+                pdf.setFillColorRGB(0.95, 0.95, 0.95)  # Світло-сірий фон
+            else:
+                pdf.setFillColorRGB(1, 1, 1)  # Білий фон
+            
+            pdf.rect(100, y_position - row_height, sum(col_widths), row_height, fill=1)
+            pdf.setFillColorRGB(0, 0, 0)  # Чорний текст
+            
+            x_pos = 100
+            for i, cell in enumerate(row):
+                pdf.drawString(x_pos + 5, y_position - 15, cell)
+                x_pos += col_widths[i]
+            
+            y_position -= row_height
+        
+        y_position -= 20
         
         # Висновки
-        story.append(Paragraph("Висновки:", styles['Heading2']))
-        conclusion_text = data.get('conclusion', 'Порівняльний аналіз показує фундаментальну різницю у динаміці струму між надпровідним та звичайним станами.')
-        conclusion = Paragraph(conclusion_text, ukrainian_style)
-        story.append(conclusion)
+        pdf.drawString(100, y_position, "Conclusions:")
+        y_position -= 20
+        conclusion = "Comparative analysis shows fundamental difference in current dynamics between superconducting and normal states."
+        pdf.drawString(120, y_position, conclusion)
         
-        doc.build(story)
+        pdf.save()
         buffer.seek(0)
         return buffer
         
-    except ImportError:
-        # Резервний варіант - простий текст
+    except Exception as e:
+        # Резервний варіант
         buffer = BytesIO()
         report_text = f"""
-        ЗВІТ З МОДЕЛЮВАННЯ СТРУМУ
+        REPORT ON CURRENT MODELING
         
-        Параметри моделювання:
-        Тип поля: {data['field_type']}
-        Напруженість поля E₀: {data['E0']} В/м
-        Початковий струм j₀: {data['j0']} А/м²
-        Час моделювання: {data['t_max']} с
-        Температура: {data.get('T_common', data.get('T_super', data.get('T_normal', 'N/A')))} K
+        Parameters:
+        - Field type: {data['field_type']}
+        - Field strength E: {data['E0']} V/m
+        - Initial current j: {data['j0']} A/m2
+        - Simulation time: {data['t_max']} s
+        - Temperature: {data.get('T_common', data.get('T_super', data.get('T_normal', 'N/A')))} K
         
-        Висновки: {data.get('conclusion', 'Порівняльний аналіз показує фундаментальну різницю у динаміці струму')}
+        Conclusions: Comparative analysis shows fundamental difference in current dynamics.
         """
         buffer.write(report_text.encode('utf-8'))
         buffer.seek(0)

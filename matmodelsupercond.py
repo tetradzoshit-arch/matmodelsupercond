@@ -132,108 +132,145 @@ def analyze_mathematical_characteristics(t, j_data, state_name, field_type, omeg
 
 def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots):
     """Створення PDF звіту"""
-   def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots):
-    """Створення PDF звіту"""
     try:
         from reportlab.lib.pagesizes import A4
-        from reportlab.pdfgen import canvas
+        from reportlit.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+        from reportlab.lib.styles import getSampleStyleSheet
+        from reportlab.lib import colors
         from reportlab.pdfbase import pdfmetrics
         from reportlab.pdfbase.ttfonts import TTFont
         import io
         
-        buffer = io.BytesIO()
-        pdf = canvas.Canvas(buffer, pagesize=A4)
+        # Реєструємо шрифт з підтримкою кирилиці
+        try:
+            # Спробуємо знайти шрифт, що підтримує кирилицю
+            pdfmetrics.registerFont(TTFont('Arial', 'arial.ttf'))
+            font_name = 'Arial'
+        except:
+            try:
+                pdfmetrics.registerFont(TTFont('DejaVuSans', 'DejaVuSans.ttf'))
+                font_name = 'DejaVuSans'
+            except:
+                font_name = 'Helvetica'
         
-        # Простий текст без складних шрифтів
-        font_name = 'Helvetica'
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=A4)
+        styles = getSampleStyleSheet()
+        story = []
         
         # Заголовок
-        pdf.setFont(font_name, 16)
-        pdf.drawString(100, 800, "ZVIT Z MODELJUVANNJA STRUMU")
-        
-        pdf.setFont(font_name, 12)
-        y_position = 750
+        title_style = styles['Heading1']
+        title_style.alignment = 1
+        title = Paragraph("ЗВІТ З МОДЕЛЮВАННЯ СТРУМУ", title_style)
+        story.append(title)
+        story.append(Spacer(1, 20))
         
         # Параметри моделювання
-        pdf.drawString(100, y_position, "Parametry modeljuvannja:")
-        y_position -= 20
-        pdf.drawString(120, y_position, f"- Typ polja: {input_data['field_type']}")
-        y_position -= 20
-        pdf.drawString(120, y_position, f"- Napruzhenist' polja E: {input_data['E0']} V/m")
-        y_position -= 20
-        pdf.drawString(120, y_position, f"- Pochatkovyj strum j: {input_data['j0']} A/m2")
-        y_position -= 20
-        pdf.drawString(120, y_position, f"- Chas modeljuvannja: {input_data['t_max']} s")
-        y_position -= 20
-        pdf.drawString(120, y_position, f"- Temperatura: {input_data['T_common']} K")
-        y_position -= 30
+        story.append(Paragraph("Параметри моделювання:", styles['Heading2']))
+        param_data = [
+            ['Параметр', 'Значення'],
+            ['Тип поля', input_data['field_type']],
+            ['Напруженість поля E₀', f"{input_data['E0']} В/м"],
+            ['Початковий струм j₀', f"{input_data['j0']} А/м²"],
+            ['Час моделювання', f"{input_data['t_max']} с"],
+            ['Температура', f"{input_data['T_common']} K"],
+        ]
         
-        # Фізичний аналіз - ПРОСТА ТАБЛИЦЯ
+        param_table = Table(param_data, colWidths=[200, 200])
+        param_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), font_name),
+            ('FONTSIZE', (0, 0), (-1, 0), 12),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ]))
+        story.append(param_table)
+        story.append(Spacer(1, 20))
+        
+        # Фізичний аналіз
         if physical_analyses:
-            pdf.drawString(100, y_position, "Fizychnyj analiz:")
-            y_position -= 30
+            story.append(Paragraph("Фізичний аналіз:", styles['Heading2']))
+            phys_data = [['Стан', 'Температура', 'j(0)', 'j_max', 'Поведінка']]
             
-            # Заголовки таблиці
-            pdf.drawString(100, y_position, "Stan")
-            pdf.drawString(200, y_position, "Temperatura") 
-            pdf.drawString(300, y_position, "j(0)")
-            pdf.drawString(400, y_position, "j_max")
-            y_position -= 20
-            
-            # Дані таблиці
             for analysis in physical_analyses:
-                pdf.drawString(100, y_position, analysis['Стан'][:15])  # Обрізаємо довгі назви
-                pdf.drawString(200, y_position, analysis['Температура'])
-                pdf.drawString(300, y_position, analysis['j(0)'])
-                pdf.drawString(400, y_position, analysis['j_max'])
-                y_position -= 20
-                
-                if y_position < 100:
-                    pdf.showPage()
-                    pdf.setFont(font_name, 12)
-                    y_position = 750
-            y_position -= 20
+                phys_data.append([
+                    analysis.get('Стан', ''),
+                    analysis.get('Температура', ''),
+                    analysis.get('j(0)', ''),
+                    analysis.get('j_max', ''),
+                    analysis.get('Поведінка', '')[:20]  # Обрізаємо довгі тексти
+                ])
+            
+            phys_table = Table(phys_data, colWidths=[80, 60, 80, 80, 120])
+            phys_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.darkblue),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), font_name),
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.lightblue),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                ('FONTSIZE', (0, 1), (-1, -1), 8)
+            ]))
+            story.append(phys_table)
+            story.append(Spacer(1, 20))
         
-        # Математичний аналіз - ПРОСТА ТАБЛИЦЯ
+        # Математичний аналіз
         if math_analyses:
-            pdf.drawString(100, y_position, "Matematychnyj analiz:")
-            y_position -= 30
+            story.append(Paragraph("Математичний аналіз:", styles['Heading2']))
+            math_data = [['Функція', 'Тип', 'Екстремуми', 'f(0)', 'f(t_max)']]
             
-            # Заголовки таблиці
-            pdf.drawString(100, y_position, "Funkcija")
-            pdf.drawString(200, y_position, "Typ")
-            pdf.drawString(300, y_position, "Ekstremumy")
-            pdf.drawString(400, y_position, "f(0)")
-            y_position -= 20
-            
-            # Дані таблиці
             for analysis in math_analyses:
-                pdf.drawString(100, y_position, analysis['Функція'][:12])
-                pdf.drawString(200, y_position, analysis['Тип функції'][:10])
-                pdf.drawString(300, y_position, analysis['Екстремуми'])
-                pdf.drawString(400, y_position, analysis['f(0)'])
-                y_position -= 20
-                
-                if y_position < 100:
-                    pdf.showPage()
-                    pdf.setFont(font_name, 12)
-                    y_position = 750
-            y_position -= 20
+                math_data.append([
+                    analysis.get('Функція', ''),
+                    analysis.get('Тип функції', '')[:15],
+                    analysis.get('Екстремуми', ''),
+                    analysis.get('f(0)', ''),
+                    analysis.get('f(t_max)', '')
+                ])
+            
+            math_table = Table(math_data, colWidths=[70, 80, 50, 70, 70])
+            math_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.darkgreen),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), font_name),
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.lightgreen),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                ('FONTSIZE', (0, 1), (-1, -1), 8)
+            ]))
+            story.append(math_table)
+            story.append(Spacer(1, 20))
         
         # Висновки
-        pdf.drawString(100, y_position, "Vysnovky:")
-        y_position -= 20
+        story.append(Paragraph("Висновки:", styles['Heading2']))
         conclusions = [
-            "• Nadprovidnyk majut' inshu povedinku",
-            "• Rizni typy poliv vyklykajut' riznu dynamiku",
-            "• Modeli adekvatno opysujut' fizychni procesy"
+            "• Надпровідник демонструє принципово іншу поведінку порівняно з звичайним металом",
+            "• При температурах нижче T_c спостерігається ефект Мейснера-Оксенфельда",
+            "• Різні типи електричних полів викликають різну динаміку струму",
+            "• Моделі адекватно описують фізичні процеси в ніобії"
         ]
         
         for conclusion in conclusions:
-            pdf.drawString(120, y_position, conclusion)
-            y_position -= 15
+            story.append(Paragraph(conclusion, styles['Normal']))
+            story.append(Spacer(1, 5))
         
-        pdf.save()
+        doc.build(story)
+        buffer.seek(0)
+        return buffer
+        
+    except Exception as e:
+        # Резервний варіант без таблиць
+        buffer = BytesIO()
+        report_text = "ЗВІТ З МОДЕЛЮВАННЯ СТРУМУ\n\n"
+        report_text += "Параметри моделювання:\n"
+        for key, value in input_data.items():
+            report_text += f"{key}: {value}\n"
+        buffer.write(report_text.encode('utf-8'))
         buffer.seek(0)
         return buffer
         

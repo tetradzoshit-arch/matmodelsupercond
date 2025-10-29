@@ -50,7 +50,7 @@ def calculate_superconducting_current(t, E_type, E0=1.0, a=1.0, omega=1.0, j0=0.
     elif E_type == "Лінійне":
         return j0 + K * (a * t**2) / 2
     elif E_type == "Синусоїдальне":
-        return j0 + (K * E0 / omega) * (1 - np.cos(omega * t))
+        return j0 + (K * E0 / omega) * np.sin(omega * t)
 
 def calculate_normal_current_drude(t, E_type, T, E0=1.0, a=1.0, omega=1.0, j0=0.0):
     """Розрахунок струму в звичайному стані - модель Друде з перехідним процесом"""
@@ -63,12 +63,11 @@ def calculate_normal_current_drude(t, E_type, T, E0=1.0, a=1.0, omega=1.0, j0=0.
         return j0 * np.exp(-t/tau_T) + sigma * a * (t - tau_T * (1.0 - np.exp(-t/tau_T)))
     elif E_type == "Синусоїдальне":
         omega_tau_sq = (omega * tau_T)**2.0
-        amp_factor = sigma / np.sqrt(1.0 + omega_tau_sq)
+        amp_factor = sigma * E0 / np.sqrt(1.0 + omega_tau_sq)  # ВИПРАВЛЕНА АМПЛІТУДА
         phase_shift = np.arctan(omega * tau_T)
-        J_steady = E0 * amp_factor * np.sin(omega * t - phase_shift)
-        C = j0 - E0 * amp_factor * np.sin(-phase_shift)
-        J_transient = C * np.exp(-t / tau_T)
-        return J_transient + J_steady
+        J_steady = amp_factor * np.sin(omega * t - phase_shift)  # БЕЗ E0 в множенні
+        J_transient = j0 * np.exp(-t / tau_T)
+    return J_transient + J_steady
 
 def calculate_normal_current_ohm(t, E_type, T, E0=1.0, a=1.0, omega=1.0, j0=0.0):
     """Розрахунок струму в звичайному стані - закон Ома (стаціонарний)"""
@@ -116,7 +115,7 @@ def analyze_physical_characteristics(t, j_data, state_name, field_type, T, omega
     elif field_type == "Синусоїдальне":
         if state_name == "Надпровідник":
             analysis['Поведінка'] = "Коливання"
-            analysis['Фазовий зсув'] = "π/2"
+            analysis['Фазовий зсув'] = "π/2 (струм випереджає поле)"
         else:
             tau_val = tau_temperature_dependence(T)
             analysis['Поведінка'] = "Коливання з фазовим зсувом"

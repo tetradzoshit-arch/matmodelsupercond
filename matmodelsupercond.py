@@ -56,16 +56,13 @@ def create_pdf_report(data):
         
         # Встановлюємо шрифт, що підтримує кирилицю
         try:
-            # Спробуємо використати DejaVu Sans - він часто встановлений
             pdfmetrics.registerFont(TTFont('DejaVuSans', 'DejaVuSans.ttf'))
             font_name = 'DejaVuSans'
         except:
             try:
-                # Спробуємо Arial
                 pdfmetrics.registerFont(TTFont('Arial', 'arial.ttf'))
                 font_name = 'Arial'
             except:
-                # Якщо нічого не вийшло - використовуємо Helvetica для латиниці
                 font_name = 'Helvetica'
         
         # Заголовок
@@ -93,7 +90,6 @@ def create_pdf_report(data):
         pdf.drawString(100, y_position, "Порівняльна таблиця:")
         y_position -= 20
         
-        # Дані для таблиці
         table_data = [
             ["Характеристика", "Надпровідник", "Звичайний стан"],
             ["Поведінка струму", "Лінійне зростання", "Експоненційне насичення"],
@@ -103,7 +99,6 @@ def create_pdf_report(data):
             ["Час релаксації", "Не важливий", "Ключовий параметр"]
         ]
         
-        # Проста таблиця
         col_widths = [200, 150, 150]
         row_height = 20
         
@@ -149,7 +144,6 @@ def create_pdf_report(data):
         return buffer
         
     except Exception as e:
-        # Резервний варіант - текстовий файл з українською
         buffer = BytesIO()
         report_text = f"""
         ЗВІТ З МОДЕЛЮВАННЯ СТРУМУ
@@ -166,15 +160,14 @@ def create_pdf_report(data):
         buffer.write(report_text.encode('utf-8'))
         buffer.seek(0)
         return buffer
+
 def main():
     st.set_page_config(page_title="Моделювання струму", layout="wide")
     st.title("🎛️ Моделювання динаміки струму: надпровідник vs звичайний метал")
     
-    # Ініціалізація сесії для зберігання графіків
     if 'saved_plots' not in st.session_state:
         st.session_state.saved_plots = []
     
-    # Сайдбар з параметрами
     with st.sidebar:
         st.header("⚙️ Параметри моделювання")
         
@@ -215,7 +208,6 @@ def main():
             T_multi = st.slider("Температура для аналізу (K)", 0.1, 15.0, 4.2, 0.1)
             current_temp = T_multi
         
-        # Кнопка для збереження поточного графіку
         if st.button("💾 Зберегти поточний графік"):
             current_params = {
                 'field_type': field_type,
@@ -231,54 +223,127 @@ def main():
             st.session_state.saved_plots = []
             st.success("Всі графіки очищено!")
 
-    # Графіки
-    st.header("📈 Графіки струму")
-    t = np.linspace(0, t_max, 1000)
-    fig = go.Figure()
-    
-    if comparison_mode == "Порівняння":
-        j_super = calculate_superconducting_current(t, field_type, E0, a, omega, j0)
-        j_normal = calculate_normal_current(t, field_type, T_common, E0, a, omega, j0)
-        fig.add_trace(go.Scatter(x=t, y=j_super, name='Надпровідник', line=dict(color='red', width=3)))
-        fig.add_trace(go.Scatter(x=t, y=j_normal, name='Звичайний метал', line=dict(color='blue', width=3)))
-        
-    elif comparison_mode == "Один стан":
-        if 'T_super' in locals():
-            j_super = calculate_superconducting_current(t, field_type, E0, a, omega, j0)
-            fig.add_trace(go.Scatter(x=t, y=j_super, name='Надпровідник', line=dict(color='red', width=3)))
-        else:
-            j_normal = calculate_normal_current(t, field_type, T_normal, E0, a, omega, j0)
-            fig.add_trace(go.Scatter(x=t, y=j_normal, name='Звичайний метал', line=dict(color='blue', width=3)))
-    
-    else:
-        j_super = calculate_superconducting_current(t, field_type, E0, a, omega, j0)
-        j_normal = calculate_normal_current(t, field_type, T_multi, E0, a, omega, j0)
-        fig.add_trace(go.Scatter(x=t, y=j_super, name='Надпровідник (поточний)', line=dict(color='red', width=3)))
-        fig.add_trace(go.Scatter(x=t, y=j_normal, name='Звичайний (поточний)', line=dict(color='blue', width=3)))
-        
-        for i, saved_plot in enumerate(st.session_state.saved_plots):
-            j_super_saved = calculate_superconducting_current(t, saved_plot['field_type'], saved_plot['E0'], a, omega, saved_plot['j0'])
-            fig.add_trace(go.Scatter(x=t, y=j_super_saved, name=f'Надпровідник {i+1}', line=dict(dash='dash')))
-    
-    fig.update_layout(title="Динаміка густини струму", xaxis_title="Час (с)", yaxis_title="Густина струму (А/м²)", height=500)
-    st.plotly_chart(fig, use_container_width=True)
-
-    # Аналіз та експорт
-    col1, col2 = st.columns([1, 1])
+    # Основний контент
+    col1, col2 = st.columns([2, 1])
     
     with col1:
+        st.header("📈 Графіки струму")
+        
+        # Розраховуємо дані для більшого діапазону часу для плавного масштабування
+        t_extended = np.linspace(0, t_max * 2, 2000)  # Подвоюємо діапазон
+        t_visible = np.linspace(0, t_max, 1000)  # Видимий діапазон
+        
+        fig = go.Figure()
+        
+        if comparison_mode == "Порівняння":
+            j_super_ext = calculate_superconducting_current(t_extended, field_type, E0, a, omega, j0)
+            j_normal_ext = calculate_normal_current(t_extended, field_type, T_common, E0, a, omega, j0)
+            
+            j_super_vis = calculate_superconducting_current(t_visible, field_type, E0, a, omega, j0)
+            j_normal_vis = calculate_normal_current(t_visible, field_type, T_common, E0, a, omega, j0)
+            
+            fig.add_trace(go.Scatter(x=t_extended, y=j_super_ext, name='Надпровідник', 
+                                   line=dict(color='red', width=3), visible=True))
+            fig.add_trace(go.Scatter(x=t_extended, y=j_normal_ext, name='Звичайний метал',
+                                   line=dict(color='blue', width=3), visible=True))
+            
+        elif comparison_mode == "Один стан":
+            if 'T_super' in locals():
+                j_super_ext = calculate_superconducting_current(t_extended, field_type, E0, a, omega, j0)
+                j_super_vis = calculate_superconducting_current(t_visible, field_type, E0, a, omega, j0)
+                fig.add_trace(go.Scatter(x=t_extended, y=j_super_ext, name='Надпровідник',
+                                       line=dict(color='red', width=3), visible=True))
+            else:
+                j_normal_ext = calculate_normal_current(t_extended, field_type, T_normal, E0, a, omega, j0)
+                j_normal_vis = calculate_normal_current(t_visible, field_type, T_normal, E0, a, omega, j0)
+                fig.add_trace(go.Scatter(x=t_extended, y=j_normal_ext, name='Звичайний метал',
+                                       line=dict(color='blue', width=3), visible=True))
+        
+        else:
+            j_super_ext = calculate_superconducting_current(t_extended, field_type, E0, a, omega, j0)
+            j_normal_ext = calculate_normal_current(t_extended, field_type, T_multi, E0, a, omega, j0)
+            
+            fig.add_trace(go.Scatter(x=t_extended, y=j_super_ext, name='Надпровідник (поточний)',
+                                   line=dict(color='red', width=3)))
+            fig.add_trace(go.Scatter(x=t_extended, y=j_normal_ext, name='Звичайний (поточний)',
+                                   line=dict(color='blue', width=3)))
+            
+            for i, saved_plot in enumerate(st.session_state.saved_plots):
+                j_super_saved = calculate_superconducting_current(t_extended, saved_plot['field_type'], 
+                                                                saved_plot['E0'], a, omega, saved_plot['j0'])
+                fig.add_trace(go.Scatter(x=t_extended, y=j_super_saved, name=f'Надпровідник {i+1}',
+                                       line=dict(dash='dash')))
+        
+        # Оновлення layout для правильного масштабування
+        fig.update_layout(
+            title="Динаміка густини струму",
+            xaxis_title="Час (с)",
+            yaxis_title="Густина струму (А/м²)",
+            height=500,
+            # Налаштування для кращого масштабування
+            xaxis=dict(
+                range=[0, t_max],  # Початковий видимий діапазон
+                autorange=False,
+                rangeslider=dict(visible=False),
+            ),
+            yaxis=dict(
+                autorange=True
+            ),
+            # Дозволяємо масштабування та панорамування
+            dragmode='zoom',
+            hovermode='closest'
+        )
+        
+        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': True, 'scrollZoom': True})
+        
+        # ОКРЕМИЙ ГРАФІК АМПЛІТУДА-ЧАСТОТА
+        if field_type == "Синусоїдальне" and comparison_mode == "Порівняння":
+            with st.expander("📡 Аналіз частотної залежності", expanded=False):
+                st.subheader("Залежність амплітуди струму від частоти")
+                
+                frequencies = np.logspace(-1, 2, 100)
+                amplitudes_super = []
+                amplitudes_normal = []
+                
+                for freq in frequencies:
+                    K = (e**2 * n0) / m
+                    amp_super = (K * E0) / freq
+                    amplitudes_super.append(amp_super)
+                    
+                    ns = n0 * (1 - (T_common/Tc)**4)
+                    tau = 1 / (1/tau_imp + A_ph * T_common**5)
+                    sigma = (ns * e**2 * tau) / m
+                    amp_normal = (sigma * E0 * tau) / np.sqrt(1 + (freq * tau)**2)
+                    amplitudes_normal.append(amp_normal)
+                
+                fig_freq = go.Figure()
+                fig_freq.add_trace(go.Scatter(x=frequencies, y=amplitudes_super, 
+                                            name='Надпровідник', line=dict(color='red')))
+                fig_freq.add_trace(go.Scatter(x=frequencies, y=amplitudes_normal,
+                                            name='Звичайний метал', line=dict(color='blue')))
+                fig_freq.update_layout(
+                    xaxis_title="Частота ω (рад/с)",
+                    yaxis_title="Амплітуда струму (А/м²)",
+                    xaxis_type="log",
+                    yaxis_type="log",
+                    height=300
+                )
+                st.plotly_chart(fig_freq, use_container_width=True)
+
+    with col2:
         st.header("📊 Аналіз результатів")
+        
         st.subheader("Параметри розрахунку")
         st.write(f"**Тип поля:** {field_type}")
         st.write(f"**E₀ =** {E0} В/м")
         st.write(f"**j₀ =** {j0} А/м²")
         st.write(f"**Температура:** {current_temp} K")
+        
         if current_temp < Tc:
             st.success("✅ Температура нижче Tкрит")
         else:
             st.warning("⚠️ Температура вище Tкрит")
 
-    with col2:
         st.header("📄 Експорт результатів")
         if st.button("📥 Згенерувати PDF звіт", use_container_width=True):
             report_data = {
@@ -287,7 +352,7 @@ def main():
                 'j0': j0,
                 't_max': t_max,
                 'T_common': current_temp,
-                'conclusion': "Порівняльний аналіз показує фундаментальну різницю у динаміці струму між надпровідним та звичайним станами."
+                'conclusion': "Порівняльний аналіз показує фундаментальну різницю у динаміці струму."
             }
             
             pdf_buffer = create_pdf_report(report_data)

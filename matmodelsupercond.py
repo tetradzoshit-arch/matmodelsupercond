@@ -124,7 +124,7 @@ def analyze_physical_characteristics(t, j_data, state_name, field_type, T, omega
     
     return analysis
 
-def analyze_mathematical_characteristics(t, j_data, state_name, field_type):
+def analyze_mathematical_characteristics(t, j_data, state_name, field_type, omega=1.0):
     """МАТЕМАТИЧНИЙ аналіз графіка функції"""
     analysis = {}
     analysis['Функція'] = state_name
@@ -164,7 +164,11 @@ def analyze_mathematical_characteristics(t, j_data, state_name, field_type):
             analysis['Тип функції'] = "Експоненційна"
     elif field_type == "Синусоїдальне":
         analysis['Тип функції'] = "Коливальна"
-        analysis['Період'] = f"{2*np.pi/omega:.2f} с" if omega > 0 else "∞"
+        # ВИПРАВЛЕННЯ: перевірка на наявність omega
+        if omega and omega > 0:
+            analysis['Період'] = f"{2*np.pi/omega:.2f} с"
+        else:
+            analysis['Період'] = "∞"
     
     return analysis
 
@@ -542,8 +546,8 @@ def main():
                     analyze_physical_characteristics(t, j_normal, "Звичайний метал", field_type, T_common, omega)
                 ]
                 math_analyses = [
-                    analyze_mathematical_characteristics(t, j_super, "Надпровідник", field_type),
-                    analyze_mathematical_characteristics(t, j_normal, "Звичайний метал", field_type)
+                    analyze_mathematical_characteristics(t, j_super, "Надпровідник", field_type, omega),
+                    analyze_mathematical_characteristics(t, j_normal, "Звичайний метал", field_type, omega)
                 ]
                 
             elif comparison_mode == "Один стан":
@@ -553,7 +557,7 @@ def main():
                     fig.add_trace(go.Scatter(x=t, y=j_data, name='Надпровідник',
                                            line=dict(color='red', width=3)))
                     physical_analyses = [analyze_physical_characteristics(t, j_data, "Надпровідник", field_type, current_temp, omega)]
-                    math_analyses = [analyze_mathematical_characteristics(t, j_data, "Надпровідник", field_type)]
+                    math_analyses = [analyze_mathematical_characteristics(t, j_data, "Надпровідник", field_type, omega)]
                 else:
                     if metal_model == "Модель Друде (з перехідним процесом)":
                         j_data = calculate_normal_current_drude(t, field_type, current_temp, E0, a, omega, j0)
@@ -565,7 +569,7 @@ def main():
                     fig.add_trace(go.Scatter(x=t, y=j_data, name=model_name,
                                            line=dict(color='blue', width=3)))
                     physical_analyses = [analyze_physical_characteristics(t, j_data, "Звичайний метал", field_type, current_temp, omega)]
-                    math_analyses = [analyze_mathematical_characteristics(t, j_data, "Звичайний метал", field_type)]
+                    math_analyses = [analyze_mathematical_characteristics(t, j_data, "Звичайний метал", field_type, omega)]
             
             else:  # Кілька графіків
                 j_super = calculate_superconducting_current(t, field_type, E0, a, omega, j0, T_multi)
@@ -581,8 +585,8 @@ def main():
                     analyze_physical_characteristics(t, j_normal, "Звичайний метал", field_type, T_multi, omega)
                 ]
                 math_analyses = [
-                    analyze_mathematical_characteristics(t, j_super, "Надпровідник", field_type),
-                    analyze_mathematical_characteristics(t, j_normal, "Звичайний метал", field_type)
+                    analyze_mathematical_characteristics(t, j_super, "Надпровідник", field_type, omega),
+                    analyze_mathematical_characteristics(t, j_normal, "Звичайний метал", field_type, omega)
                 ]
             
             fig.update_layout(
@@ -666,22 +670,22 @@ def main():
                     analyze_physical_characteristics(t, j_normal, "Звичайний метал", field_type, T_common, omega)
                 ]
                 math_analyses_for_report = [
-                    analyze_mathematical_characteristics(t, j_super, "Надпровідник", field_type),
-                    analyze_mathematical_characteristics(t, j_normal, "Звичайний метал", field_type)
+                    analyze_mathematical_characteristics(t, j_super, "Надпровідник", field_type, omega),
+                    analyze_mathematical_characteristics(t, j_normal, "Звичайний метал", field_type, omega)
                 ]
             elif comparison_mode == "Один стан":
                 auto_state = determine_state(current_temp)
                 if auto_state == "Надпровідник":
                     j_data = calculate_superconducting_current(t, field_type, E0, a, omega, j0, current_temp)
                     physical_analyses_for_report = [analyze_physical_characteristics(t, j_data, "Надпровідник", field_type, current_temp, omega)]
-                    math_analyses_for_report = [analyze_mathematical_characteristics(t, j_data, "Надпровідник", field_type)]
+                    math_analyses_for_report = [analyze_mathematical_characteristics(t, j_data, "Надпровідник", field_type, omega)]
                 else:
                     if metal_model == "Модель Друде (з перехідним процесом)":
                         j_data = calculate_normal_current_drude(t, field_type, current_temp, E0, a, omega, j0)
                     else:
                         j_data = calculate_normal_current_ohm(t, field_type, current_temp, E0, a, omega, j0)
                     physical_analyses_for_report = [analyze_physical_characteristics(t, j_data, "Звичайний метал", field_type, current_temp, omega)]
-                    math_analyses_for_report = [analyze_mathematical_characteristics(t, j_data, "Звичайний метал", field_type)]
+                    math_analyses_for_report = [analyze_mathematical_characteristics(t, j_data, "Звичайний метал", field_type, omega)]
             
             pdf_buffer = create_comprehensive_pdf_report(input_data, physical_analyses_for_report, math_analyses_for_report, st.session_state.saved_plots)
             st.download_button(

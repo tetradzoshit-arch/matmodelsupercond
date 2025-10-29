@@ -1,6 +1,8 @@
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.signal import find_peaks
+import pandas as pd
 
 # --- НАСТРОЙКА СТРАНИЦЫ ---
 st.set_page_config(page_title="Моделювання струму", layout="wide")
@@ -20,20 +22,144 @@ A_PHONON = 3.0e8         # Коефіцієнт для розсіювання н
 # --- ДОПОМІЖНІ ФУНКЦІЇ ---
 
 def tau_temperature_dependence(T):
-    """
-    Розраховує час релаксації tau(T) для звичайного металу
-    на основі правила Маттіссена: 1/tau = 1/tau_imp + 1/tau_phonon
-    Використовується T^5 залежність для розсіювання на фононах (низькі T).
-    """
-    if T <= 0.1: # Захист від ділення на нуль і для T->0
+    """Розраховує час релаксації tau(T) для звичайного металу"""
+    if T <= 0.1:
         return TAU_IMP
         
-    # Швидкість розсіювання (1/tau)
     scattering_rate = (1 / TAU_IMP) + (A_PHONON * T**5)
-    
-    # Час релаксації
     tau_T = 1.0 / scattering_rate
     return tau_T
+
+def analyze_current_direct(t_array, j_array, field_type, model_name, is_superconductor):
+    """Прямий аналіз кривої струму без лінійної регресії"""
+    analysis = {}
+    
+    # Основні статистики
+    analysis['max_current'] = np.max(j_array)
+    analysis['min_current'] = np.min(j_array)
+    analysis['mean_current'] = np.mean(j_array)
+    analysis['final_current'] = j_array[-1]
+    
+    # Час досягнення максимуму
+    max_index = np.argmax(j_array)
+    analysis['time_to_max'] = t_array[max_index]
+    
+    # АНАЛІТИЧНИЙ АНАЛІЗ ДЛЯ КОЖНОГО ТИПУ ПОЛЯ
+    if "Синусоїдальне" in field_type:
+        # Знаходимо екстремуми для синусоїди
+        peaks, _ = find_peaks(j_array, prominence=0.1*np.max(j_array))
+        valleys, _ = find_peaks(-j_array, prominence=0.1*np.max(-j_array))
+        
+        analysis['peaks_count'] = len(peaks)
+        if len(peaks) >= 2:
+            # Безпосередній розрахунок періоду
+            periods = np.diff(t_array[peaks])
+            analysis['period'] = np.mean(periods)
+            analysis['frequency_hz'] = 1.0 / analysis['period'] if analysis['period'] > 0 else 0
+            analysis['frequency_mhz'] = analysis['frequency_hz'] * 1e-6
+            
+            # Безпосередній розрахунок амплітуди
+            if len(valleys) > 0:
+                analysis['amplitude'] = (np.max(j_array[peaks]) - np.min(j_array[valleys])) / 2
+            else:
+                analysis['amplitude'] = np.max(j_array[peaks])
+        else:
+            analysis['period'] = 0
+            analysis['frequency_mhz'] = 0
+            analysis['amplitude'] = 0
+            
+    elif "Постійне" in field_type:
+        # Аналіз стабілізації для постійного поля
+        final_val = j_array[-1]
+        if final_val != 0:
+            # Знаходимо коли струм стабілізувався в межах 2%
+            settling_threshold = 0.02 * abs(final_val)
+            for i in range(len(j_array)-1, 0, -1):
+                if abs(j_array[i] - final_val) > settling_threshold:
+                    analysis['settling_time'] = t_array[i+1] if i+1 < len(t_array) else t_array[-1]
+                    break
+            else:
+                analysis['settling_time'] = t_array[0]
+        else:
+            analysis['settling_time'] = 0
+            
+    elif "Лінійне" in field_type:
+        if is_superconductor:
+            # Для надпровідника: j(t) = j₀ + ½K·a·t²
+            # Шукаємо квадратичну залежність
+            if len(t_array) > 1 and np.max(t_array) > 0:
+                # Обчислюємо фактичне прискорення зростання
+                t_mid = t_array[len(t_array)//2]
+                j_mid = j_array[len(j_array)//2]
+                if t_mid > 0:
+                    analysis['quadratic_coeff'] = (j_mid - j_array[0]) / (t_mid**2)
+                else:
+                    analysis['quadratic_coeff'] = 0
+            else:
+                analysis['quadratic_coeff'] = 0
+        else:
+            # Для металу: складніша залежність
+            # Аналізуємо швидкість зростання в кінцевій точці
+            if len(j_array) > 10:
+                last_slope = (j_array[-1] - j_array[-10]) / (t_array[-1] - t_array[-10])
+                analysis['final_growth_rate'] = last_slope
+            else:
+                analysis['final_growth_rate'] = 0
+    
+    # Додаткові характеристики
+    analysis['dynamic_range'] = analysis['max_current'] - analysis['min_current']
+    analysis['overshoot'] = analysis['max_current'] - analysis['final_current'] if analysis['max_current'] > analysis['final_current'] else 0
+    
+    return analysis
+
+def create_comparison_table(simulation_runs):
+    """Створює порівняльну таблицю всіх графіків"""
+    table_data = []
+    
+    for i, run in enumerate(simulation_runs):
+        is_superconductor = run['state'] == "Надпровідник"
+        analysis = analyze_current_direct(
+            run['T_array'], 
+            run['J_array'], 
+            run['field_type'],
+            run['model'],
+            is_superconductor
+        )
+        
+        # Базова інформація
+        row = {
+            '№': i + 1,
+            'Температура': f"{run['T']} K",
+            'Стан': run['state'],
+            'Модель': run['model'],
+            'Поле': run['field_type'].split(':')[0],
+            'Макс. струм': f"{analysis['max_current']:.2e} А/м²",
+            'Кінц. струм': f"{analysis['final_current']:.2e} А/м²",
+        }
+        
+        # Специфічні метрики для кожного типу поля
+        if "Синусоїдальне" in run['field_type']:
+            row['Амплітуда'] = f"{analysis['amplitude']:.2e} А/м²" if 'amplitude' in analysis else "N/A"
+            row['Частота'] = f"{analysis['frequency_mhz']:.1f} МГц" if 'frequency_mhz' in analysis else "N/A"
+            row['Періоди'] = f"{analysis['peaks_count']}" if 'peaks_count' in analysis else "N/A"
+            
+        elif "Постійне" in run['field_type']:
+            row['Час встановлення'] = f"{analysis['settling_time']:.1f} нс" if 'settling_time' in analysis else "N/A"
+            row['Перерегулювання'] = f"{analysis['overshoot']:.2e} А/м²" if analysis['overshoot'] > 0 else "Немає"
+            
+        elif "Лінійне" in run['field_type']:
+            if is_superconductor:
+                row['Квадрат. коеф.'] = f"{analysis['quadratic_coeff']:.2e}" if 'quadratic_coeff' in analysis else "N/A"
+            else:
+                row['Швидкість зрост.'] = f"{analysis['final_growth_rate']:.2e}" if 'final_growth_rate' in analysis else "N/A"
+        
+        # Загальні метрики
+        row['Час до макс.'] = f"{analysis['time_to_max']:.1f} нс"
+        row['Динам. діапазон'] = f"{analysis['dynamic_range']:.2e} А/м²"
+        
+        table_data.append(row)
+    
+    return pd.DataFrame(table_data)
 
 # --- ИНИЦИАЛИЗАЦИЯ СЕССИИ ---
 if 'simulation_runs' not in st.session_state:
@@ -54,21 +180,16 @@ with st.sidebar:
     if is_superconductor:
         st.success(f"⚡ Надпровідний стан: T={T}K < T_c={T_C}K")
         # Розрахунок коефіцієнта Лондонів K
-        N_S = N_0 * (1.0 - (T / T_C) ** 4.0) # Явно вказуємо float для степенів
+        N_S = N_0 * (1.0 - (T / T_C) ** 4.0)
         K_COEFF = (N_S * E_CHARGE**2) / M_ELECTRON
         st.metric("Коефіцієнт $K$", f"{K_COEFF:.2e} $A/(V \\cdot m \\cdot s)$")
     else:
         st.info(f"🔌 Звичайний метал: T={T}K $\\ge$ T_c={T_C}K")
-        
-        # --- НОВИЙ ВИБІР МОДЕЛІ ---
         metal_model = st.selectbox("Оберіть модель для металу:", 
                                    ["Модель Друде (з перехідним процесом)", 
                                     "Закон Ома (стаціонарний)"])
-
-        # ВИКОРИСТАННЯ ТЕМПЕРАТУРНО ЗАЛЕЖНОГО TAU
         tau_T_current = tau_temperature_dependence(T)
         SIGMA_COEFF = (N_0 * E_CHARGE**2 * tau_T_current) / M_ELECTRON
-        
         st.metric("Час релаксації $\\tau(T)$", f"{tau_T_current:.2e} с")
         st.metric("Провідність $\\sigma$", f"{SIGMA_COEFF:.2e} См/м")
     
@@ -83,8 +204,8 @@ with st.sidebar:
                                "Лінійне поле: E(t) = a · t", 
                                "Синусоїдальне: E(t) = E₀ · sin(ωt)"])
     
-    # Параметри поля (всі явні числа є float)
-    E_0, A, OMEGA = None, None, None # Ініціалізація
+    # Параметри поля
+    E_0, A, OMEGA = None, None, None
     if "Постійне" in field_type:
         E_0 = st.number_input("E₀ (В/м)", 0.0, 1e4, 1e3, 100.0)
     elif "Лінійне" in field_type:
@@ -92,46 +213,41 @@ with st.sidebar:
     else:  # Синусоїдальне
         E_0 = st.number_input("Амплітуда E₀ (В/м)", 0.0, 1e4, 1e3, 100.0)
         F = st.number_input("Частота f (Гц)", 1e6, 1e9, 1e7, 1e6)
-        OMEGA = 2.0 * np.pi * F # Явно вказуємо float
+        OMEGA = 2.0 * np.pi * F
 
-    # --- КНОПКИ ДЛЯ УПРАВЛЕНИЯ ГРАФИКАМИ ---
+    # Часовий інтервал
+    st.subheader("⏰ Часовий інтервал")
+    TIME_END = st.selectbox("Час моделювання", 
+                           ["1 нс", "10 нс", "100 нс", "1 мкс", "10 мкс"],
+                           index=2)
+    time_dict = {"1 нс": 1e-9, "10 нс": 10e-9, "100 нс": 100e-9, 
+                 "1 мкс": 1e-6, "10 мкс": 10e-6}
+    T_END_UNIFIED = time_dict[TIME_END]
+
+    # Кнопки управління
     st.subheader("📈 Управління графіками") 
     
-    # ВИЗНАЧЕННЯ T_END ПЕРЕД ВИКОРИСТАННЯМ
-    if "Синусоїдальне" in field_type and not is_superconductor:
-        # Для синусоїдального поля в металі - показуємо кілька періодів
-        T_END = 3 * (2.0 * np.pi / OMEGA)  # 3 періоди
-    else:
-        T_END = 1e-9  # 1 наносекунда для інших випадків
-    
-    T_ARRAY = np.linspace(0.0, T_END, 1000)
-    J_ARRAY = np.zeros_like(T_ARRAY)
-    formula_label = ""
-        
     if st.button("➕ Додати поточний графік"):
+        T_ARRAY = np.linspace(0.0, T_END_UNIFIED, 1000)
+        J_ARRAY = np.zeros_like(T_ARRAY)
+        formula_label = ""
+        
         # --- РОЗРАХУНОК СТРУМУ ---
         if is_superconductor:
-            # Рівняння Лондонів: dj/dt = K * E(t)
             if "Постійне" in field_type:
-                # 1. j(t)=j_0+KE_0 t
                 J_ARRAY = J_0 + K_COEFF * E_0 * T_ARRAY
                 formula_label = r'$j(t) = j_0 + K E_0 t$'
             elif "Лінійне" in field_type:
-                # 2. j(t)=j_0+K (at^2)/2
                 J_ARRAY = J_0 + (K_COEFF * A * T_ARRAY**2.0) / 2.0
                 formula_label = r'$j(t) = j_0 + \frac{1}{2} K a t^2$'
             else:  # Синусоїдальне
-                # 3. j(t)=j_0+(KΕ_0)/ω(1-cos⁡(ωt))
                 J_ARRAY = J_0 + (K_COEFF * E_0 / OMEGA) * (1.0 - np.cos(OMEGA * T_ARRAY))
                 formula_label = r'$j(t) = j_0 + \frac{K E_0}{\omega} (1 - \cos(\omega t))$'
         else:
-            # ЗВИЧАЙНИЙ МЕТАЛ
             tau_T = tau_temperature_dependence(T) 
             sigma = (N_0 * E_CHARGE**2.0 * tau_T) / M_ELECTRON
 
             if metal_model == "Модель Друде (з перехідним процесом)":
-                # Модель Друде: dj/dt + j/τ(T) = σ(T)/τ(T) * E(t)
-                
                 if "Постійне" in field_type:
                     J_ARRAY = J_0 * np.exp(-T_ARRAY / tau_T) + sigma * E_0 * (1.0 - np.exp(-T_ARRAY / tau_T))
                     formula_label = r'$j(t) = j_0 e^{-t/\tau(T)} + \sigma(T) E_0 (1 - e^{-t/\tau(T)})$'
@@ -141,20 +257,15 @@ with st.sidebar:
                 else:  # Синусоїдальне
                     tau = tau_T
                     omega_tau_sq = (OMEGA * tau)**2.0
-
-                    # Амплітуда і фаза стаціонарного режиму
                     amp_factor = sigma * tau / np.sqrt(1.0 + omega_tau_sq)
                     phase_shift = np.arctan(OMEGA * tau)
                     J_ST_CLASSIC = E_0 * amp_factor * np.sin(OMEGA * T_ARRAY - phase_shift)
-
-                    # Перехідна складова
                     C = J_0 - E_0 * amp_factor * np.sin(-phase_shift)
                     J_TR_CLASSIC = C * np.exp(-T_ARRAY / tau)
-
                     J_ARRAY = J_TR_CLASSIC + J_ST_CLASSIC
                     formula_label = r'$j(t) = j_{\text{tr}}(t) + j_{\text{st}}(t)$'
                     
-            else: # Закон Ома (стаціонарний)
+            else: # Закон Ома
                 if "Постійне" in field_type:
                     J_ARRAY = sigma * E_0 * np.ones_like(T_ARRAY)
                     formula_label = r'$j(t) = \sigma(T) E_0$'
@@ -168,12 +279,13 @@ with st.sidebar:
         # Зберігаємо графік
         new_run = {
             'T': T,
-            'T_array': T_ARRAY * 1e9,  # час в нс
+            'T_array': T_ARRAY * 1e9,
             'J_array': J_ARRAY,
             'formula': formula_label,
             'state': "Надпровідник" if is_superconductor else "Метал",
             'model': "Лондони" if is_superconductor else metal_model,
-            'field_type': field_type
+            'field_type': field_type,
+            'time_scale': TIME_END
         }
         st.session_state.simulation_runs.append(new_run)
         st.success(f"✅ Графік #{len(st.session_state.simulation_runs)} додано!")
@@ -182,42 +294,95 @@ with st.sidebar:
         st.session_state.simulation_runs = []
         st.success("✅ Всі графіки очищено!")
 
-# --- ВИЗУАЛИЗАЦИЯ ВСЕХ ГРАФИКОВ ---
+# --- ВИЗУАЛИЗАЦИЯ ГРАФИКОВ ---
 st.subheader("📈 Порівняння графіків")
 
 if st.session_state.simulation_runs:
-    # Створення графіка
-    fig, ax = plt.subplots(figsize=(12, 6))
+    time_scale = st.session_state.simulation_runs[0]['time_scale']
+    time_unit = time_scale.split()[1]
     
-    # Кольори для різних графіків
+    fig, ax = plt.subplots(figsize=(12, 6))
     colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b']
     
-    # Рисуємо всі графіки
     for i, run in enumerate(st.session_state.simulation_runs):
         color = colors[i % len(colors)]
-        label = f"#{i+1}: T={run['T']}K ({run['model']}), Поле: {run['field_type'].split(':')[0]}"
-        ax.plot(run['T_array'], run['J_array'], 
-                color=color, linewidth=2.5, label=label)
+        
+        if time_unit == "мкс":
+            time_array = run['T_array'] / 1000
+        else:
+            time_array = run['T_array']
+            
+        label = f"#{i+1}: {run['model']}, {run['field_type'].split(':')[0]}, T={run['T']}K"
+        ax.plot(time_array, run['J_array'], color=color, linewidth=2.5, label=label)
     
-    ax.set_xlabel('Час $t$ (нс)', fontsize=12)
-    ax.set_ylabel('Густина струму $j$ (${\\text{A}}/{\\text{м}^2}$)', fontsize=12)
-    ax.set_title('Порівняння динаміки густини струму', fontsize=14)
+    ax.set_xlabel(f'Час $t$ ({time_unit})', fontsize=12)
+    ax.set_ylabel('Густина струму $j$ (А/м²)', fontsize=12)
+    ax.set_title(f'Порівняння динаміки струму ({time_scale})', fontsize=14)
     ax.grid(True, linestyle='--', alpha=0.7)
+    ax.legend(loc='best', fontsize=9)
     ax.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
-    ax.legend(loc='upper right', fontsize=10)
-    
-    # Показати графік в Streamlit
     st.pyplot(fig)
+
+    # --- ПОРІВНЯЛЬНА ТАБЛИЦЯ ---
+    st.subheader("📊 Порівняльна таблиця графіків")
     
-    # --- ИНФОРМАЦИЯ О ГРАФИКАХ ---
-    st.subheader("📊 Інформація про графіки")
-    for i, run in enumerate(st.session_state.simulation_runs):
-        with st.expander(f"Графік #{i+1}: T={run['T']}K ({run['model']}) | Поле: {run['field_type'].split(':')[0]}"):
-            st.latex(run['formula'])
-            st.markdown(f"**Стан:** {run['state']}")
-            st.markdown(f"**Модель:** {run['model']}")
-            st.markdown(f"**Тип поля:** {run['field_type']}")
-            st.metric("Максимальний струм", f"{np.max(run['J_array']):.2e} А/м²")
+    comparison_df = create_comparison_table(st.session_state.simulation_runs)
+    
+    # Стилізація таблиці
+    st.dataframe(
+        comparison_df,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            '№': st.column_config.NumberColumn(width='small'),
+            'Температура': st.column_config.TextColumn(width='medium'),
+            'Стан': st.column_config.TextColumn(width='medium'),
+            'Модель': st.column_config.TextColumn(width='large'),
+            'Поле': st.column_config.TextColumn(width='medium'),
+            'Макс. струм': st.column_config.TextColumn(width='medium'),
+            'Кінц. струм': st.column_config.TextColumn(width='medium'),
+        }
+    )
+    
+    # Кнопки експорту
+    col1, col2 = st.columns(2)
+    with col1:
+        csv = comparison_df.to_csv(index=False, encoding='utf-8')
+        st.download_button(
+            "📥 Експортувати таблицю в CSV",
+            data=csv,
+            file_name="порівняння_графіків.csv",
+            mime="text/csv"
+        )
+    
+    with col2:
+        if st.button("📋 Показати детальний аналіз"):
+            st.subheader("Детальний аналіз кожного графіку")
+            for i, run in enumerate(st.session_state.simulation_runs):
+                with st.expander(f"🔍 Детальний аналіз графіка #{i+1}"):
+                    is_superconductor = run['state'] == "Надпровідник"
+                    analysis = analyze_current_direct(
+                        run['T_array'], run['J_array'], 
+                        run['field_type'], run['model'], is_superconductor
+                    )
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.metric("Максимальний струм", f"{analysis['max_current']:.2e} А/м²")
+                        st.metric("Мінімальний струм", f"{analysis['min_current']:.2e} А/м²")
+                        st.metric("Середній струм", f"{analysis['mean_current']:.2e} А/м²")
+                        st.metric("Динамічний діапазон", f"{analysis['dynamic_range']:.2e} А/м²")
+                    
+                    with col2:
+                        st.metric("Час до максимуму", f"{analysis['time_to_max']:.1f} нс")
+                        st.metric("Кінцевий струм", f"{analysis['final_current']:.2e} А/м²")
+                        if analysis['overshoot'] > 0:
+                            st.metric("Перерегулювання", f"{analysis['overshoot']:.2e} А/м²")
+                        
+                        if "Синусоїдальне" in run['field_type'] and 'amplitude' in analysis:
+                            st.metric("Амплітуда", f"{analysis['amplitude']:.2e} А/м²")
+                            st.metric("Частота", f"{analysis['frequency_mhz']:.1f} МГц")
+
 else:
     st.info("👆 Додайте перший графік, використовуючи кнопку в боковій панелі!")
 
@@ -225,22 +390,14 @@ else:
 with st.expander("ℹ️ Інструкція"):
     st.markdown("""
     **Як користуватися:**
-    1. **Встановіть параметри** (температура, початковий струм, тип поля) в боковій панелі.
-    2. Якщо $T \ge T_c$, оберіть модель: **Друде** (з перехідним процесом) або **Ома** (стаціонарний).
-    3. Натисніть **\"➕ Додати поточний графік\"** для додавання результату на основний графік.
-    4. **Змініть параметри** і додайте ще графіки для порівняння динаміки в різних режимах (надпровідник vs. метал).
-    5. Видаліть графіки кнопкою **\"🗑️ Очистити всі графіки\"**.
+    1. Налаштуйте параметри в боковій панелі
+    2. Натисніть \"➕ Додати поточний графік\" для додавання кривої
+    3. Порівняльна таблиця автоматично оновиться з усіма характеристиками
+    4. Використовуйте \"📥 Експортувати\" для збереження результатів
     
-    **Порада:** Порівняйте Модель Друде (яка має експоненціальне зростання) та Закон Ома (який миттєво досягає стаціонарного значення) при $T=15K$ і постійному полі.
-    """)
-
-with st.expander("ℹ️ Довідка"):
-    st.markdown("""
-    **Фізичні принципи:**
-    - **Надпровідник** ($T < T_c$): Динаміка описується **Рівняннями Лондонів**. Струм може зростати лінійно або квадратично в часі, оскільки опір дорівнює нулю.
-    - **Звичайний метал** ($T \ge T_c$):
-        - **Модель Друде:** Враховує інерцію електронів та час релаксації $\\tau(T)$, що призводить до плавного (експоненційного) встановлення струму до стаціонарного значення $\\sigma(T)E_0$.
-        - **Закон Ома:** Припускає, що струм встановлюється миттєво, тобто $j(t) = \sigma(T)E(t)$. Це наближення є коректним, коли час релаксації $\\tau(T)$ набагато менший за характерний час зміни зовнішнього поля.
-    
-    **Параметри за замовчуванням подібні до Ніобію ($\text{Nb}$).**
+    **Метрики в таблиці:**
+    - Для **синусоїдальних** полів: амплітуда, частота, кількість періодів
+    - Для **постійних** полів: час встановлення, перерегулювання  
+    - Для **лінійних** полів: квадратичний коефіцієнт або швидкість зростання
+    - Для **всіх**: час до максимуму, динамічний діапазон
     """)

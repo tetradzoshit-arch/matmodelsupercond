@@ -443,54 +443,57 @@ def main():
             st.header("📊 Збережені графіки")
             
             if not st.session_state.saved_plots:
-                st.info("Немає збережених графіків. Збережіть графіки в інших режимах.")
-            else:
-                fig_saved = go.Figure()
-                
-                for i, plot_data in enumerate(st.session_state.saved_plots):
-                    color_idx = i % 10
-                    
-                    if plot_data['state'] == 'Надпровідник':
-                        fig_saved.add_trace(go.Scatter(
-                            x=plot_data['t'], 
-                            y=plot_data['j_data'], 
-                            name=f"Надпровідник {i+1} (T={plot_data['temperature']}K)",
-                            line=dict(width=2),
-                            opacity=0.7
-                        ))
-                    elif plot_data['state'] == 'Звичайний метал':
-                        fig_saved.add_trace(go.Scatter(
-                            x=plot_data['t'], 
-                            y=plot_data['j_data'], 
-                            name=f"Метал {i+1} (T={plot_data['temperature']}K, {plot_data['model']})",
-                            line=dict(width=2),
-                            opacity=0.7
-                        ))
-                    elif plot_data['state'] in ['Порівняння', 'Кілька графіків']:
-                        fig_saved.add_trace(go.Scatter(
-                            x=plot_data['t'], 
-                            y=plot_data['j_super'], 
-                            name=f"Надпровідник {i+1}",
-                            line=dict(width=2),
-                            opacity=0.7
-                        ))
-                        fig_saved.add_trace(go.Scatter(
-                            x=plot_data['t'], 
-                            y=plot_data['j_normal'], 
-                            name=f"Метал {i+1}",
-                            line=dict(width=2),
-                            opacity=0.7
-                        ))
-                
-                fig_saved.update_layout(
-                    title="Усі збережені графіки",
-                    xaxis_title="Час (с)",
-                    yaxis_title="Густина струму (А/м²)",
-                    height=600,
-                    showlegend=True
-                )
-                
-                st.plotly_chart(fig_saved, use_container_width=True)
+               st.info("Немає збережених графіків. Збережіть графіки в інших режимах.")
+else:
+    fig_saved = go.Figure()
+    
+    for i, plot_data in enumerate(st.session_state.saved_plots):
+        color_idx = i % 10
+        
+        if plot_data['state'] == 'Надпровідник':
+            fig_saved.add_trace(go.Scatter(
+                x=plot_data['t'], 
+                y=plot_data['j_data'], 
+                name=f"Надпровідник {i+1} (T={plot_data['temperature']}K)",
+                line=dict(width=2),
+                opacity=0.7
+            ))
+        elif plot_data['state'] == 'Звичайний метал':
+            fig_saved.add_trace(go.Scatter(
+                x=plot_data['t'], 
+                y=plot_data['j_data'], 
+                name=f"Метал {i+1} (T={plot_data['temperature']}K, {plot_data['model']})",
+                line=dict(width=2),
+                opacity=0.7
+            ))
+        elif plot_data['state'] in ['Порівняння', 'Кілька графіків']:
+            fig_saved.add_trace(go.Scatter(
+                x=plot_data['t'], 
+                y=plot_data['j_super'], 
+                name=f"Надпровідник {i+1}",
+                line=dict(width=2),
+                opacity=0.7
+            ))
+            fig_saved.add_trace(go.Scatter(
+                x=plot_data['t'], 
+                y=plot_data['j_normal'], 
+                name=f"Метал {i+1}",
+                line=dict(width=2),
+                opacity=0.7
+            ))
+    
+    fig_saved.update_layout(
+        title="Усі збережені графіки",
+        xaxis_title="Час (с)",
+        yaxis_title="Густина струму (А/м²)",
+        height=600,
+        showlegend=True
+    )
+    
+    # ДОДАТИ ЦЕЙ РЯДОК для форматування осі Y:
+    fig_saved.update_yaxes(tickformat=".2e")
+    
+    st.plotly_chart(fig_saved, use_container_width=True)
         
         else:
             st.header("📈 Графіки струму")

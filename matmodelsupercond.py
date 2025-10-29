@@ -99,7 +99,11 @@ with st.sidebar:
     
     if st.button("➕ Додати поточний графік"):
         # Розміри розрахунків
-        T_END = 1e-9
+        if "Синусоїдальне" in field_type and not is_superconductor:
+           # Для синусоїдального поля в металі - показуємо кілька періодів
+           T_END = 3 * (2.0 * np.pi / OMEGA)  # 3 періоди
+       else:
+           T_END = 1e-9  # 1 наносекунда для інших випадків
         T_ARRAY = np.linspace(0.0, T_END, 1000)
         J_ARRAY = np.zeros_like(T_ARRAY)
         formula_label = ""

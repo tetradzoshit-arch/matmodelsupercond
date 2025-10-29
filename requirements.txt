@@ -3,4 +3,4 @@ plotly
 numpy
 matplotlib
 pandas
-reportlab
+scipy

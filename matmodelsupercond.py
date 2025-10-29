@@ -281,3 +281,28 @@ with st.expander("ℹ️ Інструкція"):
     - **Амплітуда E₀:** 1000-10000 В/м  
     - **Час моделювання:** 10-100 мкс
     """)
+    # Додай цей код в блок if st.button("➕ Додати поточний графік"):
+# ПІСЛЯ розрахунку J_ARRAY, АЛЕ ПЕРЕД new_run = {...}
+
+st.write("🔍 **ДЕБАГ РОЗРАХУНКІВ:**")
+
+if is_superconductor:
+    st.write(f"Надпровідник: T={T}K")
+    st.write(f"K_COEFF = {K_COEFF:.2e}")
+    st.write(f"E_0 = {E_0} В/м")
+    st.write(f"OMEGA = {OMEGA:.2e} рад/с")
+    if "Синусоїдальне" in field_type:
+        expected_amplitude = (K_COEFF * E_0 / OMEGA) * 2
+        st.write(f"Очікувана амплітуда = {expected_amplitude:.2e} А/м²")
+else:
+    st.write(f"Метал: T={T}K")
+    tau_T = tau_temperature_dependence(T)
+    sigma = (N_0 * E_CHARGE**2.0 * tau_T) / M_ELECTRON
+    st.write(f"tau_T = {tau_T:.2e} с")
+    st.write(f"sigma = {sigma:.2e} См/м")
+    st.write(f"E_0 = {E_0} В/м")
+    if "Синусоїдальне" in field_type:
+        expected_amplitude = sigma * E_0
+        st.write(f"Очікувана амплітуда = {expected_amplitude:.2e} А/м²")
+
+st.write(f"Фактичний макс. струм = {np.max(J_ARRAY):.2e} А/м²")

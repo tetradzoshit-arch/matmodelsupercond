@@ -59,6 +59,20 @@ def analyze_current_direct(t_array, j_array, field_type, model_name, is_supercon
         peaks = find_peaks_simple(j_array, prominence=0.1)
         valleys = find_peaks_simple(-j_array, prominence=0.1)
         
+        def analyze_current_direct(t_array, j_array, field_type, model_name, is_superconductor):
+    """Прямий аналіз кривої струму без лінійної регресії"""
+    analysis = {}
+    
+    # ІНІЦІАЛІЗУЄМО ВСІ ЗМІННІ ЗАЗДАЛЕГІДЬ
+    analysis['peaks_count'] = 0
+    analysis['period'] = 0
+    analysis['frequency_mhz'] = 0
+    analysis['amplitude'] = 0
+    analysis['settling_time'] = 0
+    analysis['quadratic_coeff'] = 0
+    analysis['final_growth_rate'] = 0
+    
+    # ... решта коду без змін ...
         analysis['peaks_count'] = len(peaks)
         if len(peaks) >= 2:
             # Безпосередній розрахунок періоду

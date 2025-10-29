@@ -192,26 +192,55 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
                     pdf.setFont(font_name, 12)
                     y_position = 770
         
-        # Математичний аналіз
-        if math_analyses:
-            pdf.drawString(100, y_position, "Математичний аналіз:")
-            y_position -= 20
-            
-            for analysis in math_analyses:
-                pdf.drawString(120, y_position, f"{analysis['Функція']}:")
-                y_position -= 15
-                pdf.drawString(140, y_position, f"Тип: {analysis['Тип функції']}")
-                y_position -= 15
-                pdf.drawString(140, y_position, f"Екстремуми: {analysis['Екстремуми']}")
-                y_position -= 15
-                pdf.drawString(140, y_position, f"f(0) = {analysis['f(0)']}")
-                y_position -= 20
-                
-                if y_position < 100:
-                    pdf.showPage()
-                    pdf.setFont(font_name, 12)
-                    y_position = 770
-        
+        def analyze_mathematical_characteristics(t, j_data, state_name, field_type, omega=1.0):
+    """МАТЕМАТИЧНИЙ аналіз графіка функції"""
+    analysis = {}
+    analysis['Функція'] = state_name
+    
+    # Основні математичні характеристики
+    analysis['f(0)'] = f"{j_data[0]:.2e}"
+    analysis['f(t_max)'] = f"{j_data[-1]:.2e}"
+    analysis['max f(t)'] = f"{np.max(j_data):.2e}"
+    analysis['min f(t)'] = f"{np.min(j_data):.2e}"
+    analysis['Середнє'] = f"{np.mean(j_data):.2e}"
+    analysis['Стандартне відхилення'] = f"{np.std(j_data):.2e}"
+    
+    # Похідна - ВИПРАВЛЕНО
+    dt = t[1] - t[0]
+    dj_dt = np.gradient(j_data, dt)
+    
+    # Тільки три основні характеристики похідної
+    analysis["f'(max)"] = f"{np.max(dj_dt):.2e}"      # Максимальна швидкість зміни
+    analysis["f'(min)"] = f"{np.min(dj_dt):.2e}"      # Мінімальна швидкість зміни  
+    analysis["f'(сер)"] = f"{np.mean(dj_dt):.2e}"     # Середня швидкість зміни
+    
+    # Екстремуми
+    peaks, _ = find_peaks(j_data, prominence=np.max(j_data)*0.01)
+    valleys, _ = find_peaks(-j_data, prominence=-np.min(j_data)*0.01)
+    
+    analysis['Максимуми'] = len(peaks)
+    analysis['Мінімуми'] = len(valleys)
+    analysis['Екстремуми'] = len(peaks) + len(valleys)
+    
+    # Тип функції
+    if field_type == "Статичне":
+        if state_name == "Надпровідник":
+            analysis['Тип функції'] = "Лінійна"
+        else:
+            analysis['Тип функції'] = "Експоненційна"
+    elif field_type == "Лінійне":
+        if state_name == "Надпровідник":
+            analysis['Тип функції'] = "Квадратична"
+        else:
+            analysis['Тип функції'] = "Експоненційна"
+    elif field_type == "Синусоїдальне":
+        analysis['Тип функції'] = "Коливальна"
+        if omega and omega > 0:
+            analysis['Період'] = f"{2*np.pi/omega:.2f} с"
+        else:
+            analysis['Період'] = "∞"
+    
+    return analysis
         # Висновки
         pdf.drawString(100, y_position, "Висновки:")
         y_position -= 20

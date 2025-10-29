@@ -8,8 +8,8 @@ E_CHARGE = 1.6e-19
 M_ELECTRON = 9.1e-31
 N_0 = 5.0e28
 T_C = 9.2
-TAU_IMP = 5.0e-13
-A_PHONON = 1.0e7
+TAU_IMP = 1.0e-10
+A_PHONON = 1.0e8
 
 # --- ДОПОМІЖНІ ФУНКЦІЇ ---
 def tau_temperature_dependence(T):

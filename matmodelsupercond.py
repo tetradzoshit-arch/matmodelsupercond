@@ -291,7 +291,7 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
         # Резервний варіант - текстовий файл з українською
         buffer = BytesIO()
         report_text = f"""
-        ЗВІТ З МОДЕЛЮВАННЯ СТРУМУ В НІОБІЇ
+        ЗВІТ З МОДЕЛЮВАННЯ СТРУМУ
         
         Параметри моделювання:
         - Тип поля: {input_data['field_type']}
@@ -321,8 +321,8 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
         return buffer
 
 def main():
-    st.set_page_config(page_title="Моделювання струму в ніобії", layout="wide")
-    st.title("🔬 Моделювання динаміки струму в ніобії")
+    st.set_page_config(page_title="Моделювання струму", layout="wide")
+    st.title("🔬 Моделювання динаміки струму")
     
     # Ініціалізація збережених графіків
     if 'saved_plots' not in st.session_state:
@@ -656,7 +656,7 @@ def main():
             st.download_button(
                 label="⬇️ Завантажити PDF звіт",
                 data=pdf_buffer,
-                file_name="звіт_моделювання_ніобій.pdf",
+                file_name="звіт_моделювання.pdf",
                 mime="application/pdf",
                 use_container_width=True
             )

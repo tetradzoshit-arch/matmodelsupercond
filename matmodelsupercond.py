@@ -42,6 +42,7 @@ def calculate_normal_current(t, E_type, T, E0=1.0, a=1.0, omega=1.0, j0=0.0):
         transient = j0 * np.exp(-t/tau)
         return transient + amplitude * np.sin(omega * t - phase_shift)
 
+
 def create_pdf_report(data):
     """Створення PDF звіту"""
     from reportlab.lib.pagesizes import letter

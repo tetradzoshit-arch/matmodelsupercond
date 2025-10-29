@@ -132,6 +132,8 @@ def analyze_mathematical_characteristics(t, j_data, state_name, field_type, omeg
 
 def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots):
     """Створення PDF звіту"""
+   def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots):
+    """Створення PDF звіту"""
     try:
         from reportlab.lib.pagesizes import A4
         from reportlab.pdfgen import canvas
@@ -142,86 +144,106 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
         buffer = io.BytesIO()
         pdf = canvas.Canvas(buffer, pagesize=A4)
         
-        # Спроба встановити шрифт з підтримкою кирилиці
-        try:
-            pdfmetrics.registerFont(TTFont('DejaVuSans', 'DejaVuSans.ttf'))
-            font_name = 'DejaVuSans'
-        except:
-            font_name = 'Helvetica'
+        # Простий текст без складних шрифтів
+        font_name = 'Helvetica'
         
         # Заголовок
         pdf.setFont(font_name, 16)
-        pdf.drawString(100, 800, "ЗВІТ З МОДЕЛЮВАННЯ СТРУМУ В НІОБІЇ")
+        pdf.drawString(100, 800, "ZVIT Z MODELJUVANNJA STRUMU")
         
         pdf.setFont(font_name, 12)
         y_position = 750
         
         # Параметри моделювання
-        pdf.drawString(100, y_position, "Параметри моделювання:")
-        for param, value in [
-            ("Тип поля", input_data['field_type']),
-            ("Напруженість поля E₀", f"{input_data['E0']} В/м"),
-            ("Початковий струм j₀", f"{input_data['j0']} А/м²"),
-            ("Час моделювання", f"{input_data['t_max']} с"),
-            ("Температура", f"{input_data['T_common']} K")
-        ]:
-            y_position -= 20
-            pdf.drawString(120, y_position, f"- {param}: {value}")
-        
+        pdf.drawString(100, y_position, "Parametry modeljuvannja:")
+        y_position -= 20
+        pdf.drawString(120, y_position, f"- Typ polja: {input_data['field_type']}")
+        y_position -= 20
+        pdf.drawString(120, y_position, f"- Napruzhenist' polja E: {input_data['E0']} V/m")
+        y_position -= 20
+        pdf.drawString(120, y_position, f"- Pochatkovyj strum j: {input_data['j0']} A/m2")
+        y_position -= 20
+        pdf.drawString(120, y_position, f"- Chas modeljuvannja: {input_data['t_max']} s")
+        y_position -= 20
+        pdf.drawString(120, y_position, f"- Temperatura: {input_data['T_common']} K")
         y_position -= 30
         
-        # Фізичний аналіз
+        # Фізичний аналіз - ПРОСТА ТАБЛИЦЯ
         if physical_analyses:
-            pdf.drawString(100, y_position, "Фізичний аналіз:")
+            pdf.drawString(100, y_position, "Fizychnyj analiz:")
+            y_position -= 30
+            
+            # Заголовки таблиці
+            pdf.drawString(100, y_position, "Stan")
+            pdf.drawString(200, y_position, "Temperatura") 
+            pdf.drawString(300, y_position, "j(0)")
+            pdf.drawString(400, y_position, "j_max")
             y_position -= 20
+            
+            # Дані таблиці
             for analysis in physical_analyses:
-                pdf.drawString(120, y_position, f"{analysis['Стан']} (T={analysis['Температура']}):")
-                y_position -= 15
-                pdf.drawString(140, y_position, f"j(0) = {analysis['j(0)']}, j_max = {analysis['j_max']}")
-                y_position -= 15
-                pdf.drawString(140, y_position, f"Поведінка: {analysis['Поведінка']}")
+                pdf.drawString(100, y_position, analysis['Стан'][:15])  # Обрізаємо довгі назви
+                pdf.drawString(200, y_position, analysis['Температура'])
+                pdf.drawString(300, y_position, analysis['j(0)'])
+                pdf.drawString(400, y_position, analysis['j_max'])
                 y_position -= 20
+                
                 if y_position < 100:
                     pdf.showPage()
                     pdf.setFont(font_name, 12)
                     y_position = 750
-        
-        # Математичний аналіз
-        if math_analyses:
-            pdf.drawString(100, y_position, "Математичний аналіз:")
             y_position -= 20
+        
+        # Математичний аналіз - ПРОСТА ТАБЛИЦЯ
+        if math_analyses:
+            pdf.drawString(100, y_position, "Matematychnyj analiz:")
+            y_position -= 30
+            
+            # Заголовки таблиці
+            pdf.drawString(100, y_position, "Funkcija")
+            pdf.drawString(200, y_position, "Typ")
+            pdf.drawString(300, y_position, "Ekstremumy")
+            pdf.drawString(400, y_position, "f(0)")
+            y_position -= 20
+            
+            # Дані таблиці
             for analysis in math_analyses:
-                pdf.drawString(120, y_position, f"{analysis['Функція']}:")
-                y_position -= 15
-                pdf.drawString(140, y_position, f"Тип: {analysis['Тип функції']}, Екстремуми: {analysis['Екстремуми']}")
-                y_position -= 15
-                pdf.drawString(140, y_position, f"f(0) = {analysis['f(0)']}, f(t_max) = {analysis['f(t_max)']}")
+                pdf.drawString(100, y_position, analysis['Функція'][:12])
+                pdf.drawString(200, y_position, analysis['Тип функції'][:10])
+                pdf.drawString(300, y_position, analysis['Екстремуми'])
+                pdf.drawString(400, y_position, analysis['f(0)'])
                 y_position -= 20
+                
                 if y_position < 100:
                     pdf.showPage()
                     pdf.setFont(font_name, 12)
                     y_position = 750
+            y_position -= 20
         
         # Висновки
-        y_position -= 20
-        pdf.drawString(100, y_position, "Висновки:")
+        pdf.drawString(100, y_position, "Vysnovky:")
         y_position -= 20
         conclusions = [
-            "• Надпровідник демонструє принципово іншу поведінку",
-            "• При температурах нижче T_c спостерігається ефект Мейснера-Оксенфельда", 
-            "• Різні типи полів викликають різну динаміку струму",
-            "• Моделі адекватно описують фізичні процеси в ніобії"
+            "• Nadprovidnyk majut' inshu povedinku",
+            "• Rizni typy poliv vyklykajut' riznu dynamiku",
+            "• Modeli adekvatno opysujut' fizychni procesy"
         ]
         
         for conclusion in conclusions:
             pdf.drawString(120, y_position, conclusion)
             y_position -= 15
-            if y_position < 100:
-                pdf.showPage()
-                pdf.setFont(font_name, 12)
-                y_position = 750
         
         pdf.save()
+        buffer.seek(0)
+        return buffer
+        
+    except Exception as e:
+        # Резервний варіант
+        buffer = BytesIO()
+        report_text = "ZVIT Z MODELJUVANNJA STRUMU\n\n"
+        for key, value in input_data.items():
+            report_text += f"{key}: {value}\n"
+        buffer.write(report_text.encode('utf-8'))
         buffer.seek(0)
         return buffer
         

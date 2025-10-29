@@ -35,13 +35,13 @@ def calculate_normal_current(t, E_type, T, E0=1.0, a=1.0, omega=1.0, j0=0.0):
     sigma = (ns * e**2 * tau) / m
     
     if E_type == "Статичне":
-        return j0 * np.exp(-t/tau) + sigma * E0 * tau * (1 - np.exp(-t/tau))
+        return j0 * np.exp(-t/tau) + sigma * E0 * (1 - np.exp(-t/tau))
     elif E_type == "Лінійне":
-        return j0 * np.exp(-t/tau) + sigma * a * E0 * tau**2 * (1 - np.exp(-t/tau))
+        return j0 * np.exp(-t/tau) + sigma * a * t * (1 - np.exp(-t/tau))
     elif E_type == "Синусоїдальне":
         # ВИПРАВЛЕННЯ: правильна формула для синусоїдального поля
         phase_shift = np.arctan(omega * tau)
-        amplitude = (sigma * E0 * tau) / np.sqrt(1 + (omega * tau)**2)
+        amplitude = (sigma * E0) / np.sqrt(1 + (omega * tau)**2)
         transient = j0 * np.exp(-t/tau)
         steady_state = amplitude * np.sin(omega * t - phase_shift)
         return transient + steady_state
@@ -333,7 +333,7 @@ def main():
             ]
             
         elif comparison_mode == "Один стан":
-            if 'T_super' in locals():
+            if selected_state == "Надпровідник":
                 j_super = calculate_superconducting_current(t, field_type, E0, a, omega, j0)
                 fig.add_trace(go.Scatter(x=t, y=j_super, name='Надпровідник',
                                        line=dict(color='red', width=3)))

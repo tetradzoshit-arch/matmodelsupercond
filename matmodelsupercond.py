@@ -17,13 +17,22 @@ kB = 1.3806e-23  # Дж/К (стала Больцмана)
 # Параметри ніобію
 Tc = 9.2  # К (критична температура)
 Δ0 = 1.76 * kB * Tc  # енергетична щілина при T=0
-n0 = 2.8e28  # м⁻³ (концентрація електронів) - БІЛЬШ РЕАЛІСТИЧНЕ ЗНАЧЕННЯ
-tau_imp = 1.0e-12  # с (час релаксації імпуріті) - БІЛЬШ РЕАЛІСТИЧНЕ ЗНАЧЕННЯ
-A_ph = 1.0e7  # коефіцієнт фононного розсіювання - ВИПРАВЛЕНО
+n0 = 2.8e28  # м⁻³ (концентрація електронів)
+tau_imp = 1.0e-12  # с (час релаксації імпуріті)
 
-def calculate_superconducting_current(t, E_type, E0=1.0, a=1.0, omega=1.0, j0=0.0):
+def tau_temperature_dependence(T):
+    """Залежність часу релаксації від температури"""
+    return tau_imp / (1 + (T / Tc)**3)
+
+def calculate_superconducting_current(t, E_type, E0=1.0, a=1.0, omega=1.0, j0=0.0, T=4.2):
     """Розрахунок струму в надпровідному стані - рівняння Лондонів"""
-    K = (e**2 * n0) / m
+    # Концентрація надпровідних електронів
+    if T < Tc:
+        ns = n0 * (1.0 - (T / Tc)**4.0)
+    else:
+        ns = 0.0
+    
+    K = (e**2 * ns) / m
     
     if E_type == "Статичне":
         return j0 + K * E0 * t
@@ -32,31 +41,35 @@ def calculate_superconducting_current(t, E_type, E0=1.0, a=1.0, omega=1.0, j0=0.
     elif E_type == "Синусоїдальне":
         return j0 + (K * E0 / omega) * (1 - np.cos(omega * t))
 
-def calculate_normal_current(t, E_type, T, E0=1.0, a=1.0, omega=1.0, j0=0.0):
-    """Розрахунок струму в звичайному стані - модель Друде"""
-    # ВИПРАВЛЕННЯ: правильніша модель для нормального металу
-    ns = n0  # концентрація носіїв
-    
-    # Розрахунок часу релаксації з більш реалістичними параметрами
-    tau_ph = 1.0e-12 / (T + 1e-6)  # фононна релаксація
-    tau = 1 / (1/tau_imp + 1/tau_ph)
-    
-    # Провідність за Друде
-    sigma = (ns * e**2 * tau) / m
+def calculate_normal_current_drude(t, E_type, T, E0=1.0, a=1.0, omega=1.0, j0=0.0):
+    """Розрахунок струму в звичайному стані - модель Друде з перехідним процесом"""
+    tau_T = tau_temperature_dependence(T)
+    sigma = (n0 * e**2 * tau_T) / m
     
     if E_type == "Статичне":
-        # j = j0*exp(-t/tau) + σE(1 - exp(-t/tau))
-        return j0 * np.exp(-t/tau) + sigma * E0 * (1 - np.exp(-t/tau))
+        return j0 * np.exp(-t/tau_T) + sigma * E0 * (1.0 - np.exp(-t/tau_T))
     elif E_type == "Лінійне":
-        # j = j0*exp(-t/tau) + σa∫₀ᵗ t'exp(-(t-t')/τ)dt'
-        return j0 * np.exp(-t/tau) + sigma * a * (t * tau - tau**2 * (1 - np.exp(-t/tau)))
+        return j0 * np.exp(-t/tau_T) + sigma * a * (t - tau_T * (1.0 - np.exp(-t/tau_T)))
     elif E_type == "Синусоїдальне":
-        # j = j0*exp(-t/tau) + σE₀/(1+(ωτ)²) * [sin(ωt-φ) + (ωτ)exp(-t/τ)]
-        phase_shift = np.arctan(omega * tau)
-        amplitude = (sigma * E0) / np.sqrt(1 + (omega * tau)**2)
-        transient = j0 * np.exp(-t/tau)
-        steady_state = amplitude * np.sin(omega * t - phase_shift)
-        return transient + steady_state
+        omega_tau_sq = (omega * tau_T)**2.0
+        amp_factor = sigma / np.sqrt(1.0 + omega_tau_sq)
+        phase_shift = np.arctan(omega * tau_T)
+        J_steady = E_0 * amp_factor * np.sin(omega * t - phase_shift)
+        C = j0 - E_0 * amp_factor * np.sin(-phase_shift)
+        J_transient = C * np.exp(-t / tau_T)
+        return J_transient + J_steady
+
+def calculate_normal_current_ohm(t, E_type, T, E0=1.0, a=1.0, omega=1.0, j0=0.0):
+    """Розрахунок струму в звичайному стані - закон Ома (стаціонарний)"""
+    tau_T = tau_temperature_dependence(T)
+    sigma = (n0 * e**2 * tau_T) / m
+    
+    if E_type == "Статичне":
+        return sigma * E0 * np.ones_like(t)
+    elif E_type == "Лінійне":
+        return sigma * a * t
+    elif E_type == "Синусоїдальне":
+        return sigma * E0 * np.sin(omega * t)
 
 def analyze_physical_characteristics(t, j_data, state_name, field_type, T, omega=1.0):
     """ФІЗИЧНИЙ аналіз характеристик струму"""
@@ -88,7 +101,7 @@ def analyze_physical_characteristics(t, j_data, state_name, field_type, T, omega
             analysis['Поведінка'] = "Коливання"
             analysis['Фазовий зсув'] = "π/2"
         else:
-            tau_val = 1 / (1/tau_imp + A_ph * T**5)
+            tau_val = tau_temperature_dependence(T)
             analysis['Поведінка'] = "Коливання з фазовим зсувом"
             analysis['Фазовий зсув'] = f"{np.arctan(omega * tau_val):.3f} рад"
     
@@ -300,7 +313,7 @@ def main():
         
         st.subheader("Параметри станів")
         if comparison_mode == "Порівняння":
-            T_common = st.slider("Температура (K)", 0.1, 300.0, 4.2, 0.1)
+            T_common = st.slider("Температура (K)", 0.1, 15.0, 4.2, 0.1)
             current_temp = T_common
         elif comparison_mode == "Один стан":
             selected_state = st.radio("Стан:", ["Надпровідник", "Звичайний метал"])
@@ -308,11 +321,14 @@ def main():
                 T_super = st.slider("Температура надпровідника (K)", 0.1, Tc-0.1, 4.2, 0.1)
                 current_temp = T_super
             else:
-                # ВИПРАВЛЕННЯ: дозволяємо температуру до 300K для нормального металу
-                T_normal = st.slider("Температура металу (K)", 0.1, 300.0, 4.2, 0.1)
+                # ВИПРАВЛЕННЯ: температура тільки до 15K для нормального металу
+                T_normal = st.slider("Температура металу (K)", 0.1, 15.0, 4.2, 0.1)
                 current_temp = T_normal
+                # ВИПРАВЛЕННЯ: вибір моделі для нормального металу
+                metal_model = st.radio("Модель для металу:", 
+                                     ["Модель Друде (з перехідним процесом)", "Закон Ома (стаціонарний)"])
         else:
-            T_multi = st.slider("Температура (K)", 0.1, 300.0, 4.2, 0.1)
+            T_multi = st.slider("Температура (K)", 0.1, 15.0, 4.2, 0.1)
             current_temp = T_multi
 
         # Кнопка збереження поточного графіка
@@ -333,30 +349,39 @@ def main():
                 if comparison_mode == "Один стан":
                     if selected_state == "Надпровідник":
                         plot_data['j_super'] = calculate_superconducting_current(
-                            plot_data['t'], field_type, E0, a, omega, j0
+                            plot_data['t'], field_type, E0, a, omega, j0, current_temp
                         )
                         plot_data['state'] = 'Надпровідник'
+                        plot_data['model'] = 'Лондони'
                     else:
-                        plot_data['j_normal'] = calculate_normal_current(
-                            plot_data['t'], field_type, current_temp, E0, a, omega, j0
-                        )
+                        if metal_model == "Модель Друде (з перехідним процесом)":
+                            plot_data['j_normal'] = calculate_normal_current_drude(
+                                plot_data['t'], field_type, current_temp, E0, a, omega, j0
+                            )
+                        else:
+                            plot_data['j_normal'] = calculate_normal_current_ohm(
+                                plot_data['t'], field_type, current_temp, E0, a, omega, j0
+                            )
                         plot_data['state'] = 'Звичайний метал'
+                        plot_data['model'] = metal_model
                 elif comparison_mode == "Порівняння":
                     plot_data['j_super'] = calculate_superconducting_current(
-                        plot_data['t'], field_type, E0, a, omega, j0
+                        plot_data['t'], field_type, E0, a, omega, j0, T_common
                     )
-                    plot_data['j_normal'] = calculate_normal_current(
+                    plot_data['j_normal'] = calculate_normal_current_drude(
                         plot_data['t'], field_type, T_common, E0, a, omega, j0
                     )
                     plot_data['state'] = 'Порівняння'
+                    plot_data['model'] = 'Друде'
                 else:  # Кілька графіків
                     plot_data['j_super'] = calculate_superconducting_current(
-                        plot_data['t'], field_type, E0, a, omega, j0
+                        plot_data['t'], field_type, E0, a, omega, j0, T_multi
                     )
-                    plot_data['j_normal'] = calculate_normal_current(
+                    plot_data['j_normal'] = calculate_normal_current_drude(
                         plot_data['t'], field_type, T_multi, E0, a, omega, j0
                     )
                     plot_data['state'] = 'Кілька графіків'
+                    plot_data['model'] = 'Друде'
                 
                 st.session_state.saved_plots.append(plot_data)
                 st.success(f"Графік збережено! Всього збережено: {len(st.session_state.saved_plots)}")
@@ -393,7 +418,7 @@ def main():
                         fig_saved.add_trace(go.Scatter(
                             x=plot_data['t'], 
                             y=plot_data['j_normal'], 
-                            name=f"Метал {i+1} (T={plot_data['temperature']}K)",
+                            name=f"Метал {i+1} (T={plot_data['temperature']}K, {plot_data['model']})",
                             line=dict(width=2),
                             opacity=0.7
                         ))
@@ -431,7 +456,7 @@ def main():
                         st.write(f"E₀: {plot_data['E0']} В/м")
                         st.write(f"j₀: {plot_data['j0']} А/м²")
                         st.write(f"Температура: {plot_data['temperature']} K")
-                        st.write(f"Час: {plot_data['t_max']} с")
+                        st.write(f"Модель: {plot_data.get('model', 'Лондони')}")
                         st.write(f"Збережено: {plot_data['timestamp']}")
                         
                         if st.button(f"Видалити графік {i+1}", key=f"delete_{i}"):
@@ -448,12 +473,12 @@ def main():
             math_analyses = []
             
             if comparison_mode == "Порівняння":
-                j_super = calculate_superconducting_current(t, field_type, E0, a, omega, j0)
-                j_normal = calculate_normal_current(t, field_type, T_common, E0, a, omega, j0)
+                j_super = calculate_superconducting_current(t, field_type, E0, a, omega, j0, T_common)
+                j_normal = calculate_normal_current_drude(t, field_type, T_common, E0, a, omega, j0)
                 
                 fig.add_trace(go.Scatter(x=t, y=j_super, name='Надпровідник', 
                                        line=dict(color='red', width=3)))
-                fig.add_trace(go.Scatter(x=t, y=j_normal, name='Звичайний метал',
+                fig.add_trace(go.Scatter(x=t, y=j_normal, name='Звичайний метал (Друде)',
                                        line=dict(color='blue', width=3)))
                 
                 physical_analyses = [
@@ -467,21 +492,27 @@ def main():
                 
             elif comparison_mode == "Один стан":
                 if selected_state == "Надпровідник":
-                    j_super = calculate_superconducting_current(t, field_type, E0, a, omega, j0)
+                    j_super = calculate_superconducting_current(t, field_type, E0, a, omega, j0, T_super)
                     fig.add_trace(go.Scatter(x=t, y=j_super, name='Надпровідник',
                                            line=dict(color='red', width=3)))
                     physical_analyses = [analyze_physical_characteristics(t, j_super, "Надпровідник", field_type, T_super, omega)]
                     math_analyses = [analyze_mathematical_characteristics(t, j_super, "Надпровідник", field_type)]
                 else:
-                    j_normal = calculate_normal_current(t, field_type, T_normal, E0, a, omega, j0)
-                    fig.add_trace(go.Scatter(x=t, y=j_normal, name='Звичайний метал',
+                    if metal_model == "Модель Друде (з перехідним процесом)":
+                        j_normal = calculate_normal_current_drude(t, field_type, T_normal, E0, a, omega, j0)
+                        model_name = "Звичайний метал (Друде)"
+                    else:
+                        j_normal = calculate_normal_current_ohm(t, field_type, T_normal, E0, a, omega, j0)
+                        model_name = "Звичайний метал (Ом)"
+                    
+                    fig.add_trace(go.Scatter(x=t, y=j_normal, name=model_name,
                                            line=dict(color='blue', width=3)))
                     physical_analyses = [analyze_physical_characteristics(t, j_normal, "Звичайний метал", field_type, T_normal, omega)]
                     math_analyses = [analyze_mathematical_characteristics(t, j_normal, "Звичайний метал", field_type)]
             
             else:  # Кілька графіків
-                j_super = calculate_superconducting_current(t, field_type, E0, a, omega, j0)
-                j_normal = calculate_normal_current(t, field_type, T_multi, E0, a, omega, j0)
+                j_super = calculate_superconducting_current(t, field_type, E0, a, omega, j0, T_multi)
+                j_normal = calculate_normal_current_drude(t, field_type, T_multi, E0, a, omega, j0)
                 
                 fig.add_trace(go.Scatter(x=t, y=j_super, name='Надпровідник',
                                        line=dict(color='red', width=3)))

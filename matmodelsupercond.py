@@ -44,38 +44,28 @@ def calculate_normal_current(t, E_type, T, E0=1.0, a=1.0, omega=1.0, j0=0.0):
 
 
 def create_pdf_report(data):
-    """Створення PDF звіту"""
-    from reportlab.lib.pagesizes import letter
-    from reportlab.pdfgen import canvas
-    from reportlab.lib.utils import ImageReader
-    import io
+    """Створення звіту у форматі TXT"""
+    buffer = BytesIO()
     
-    buffer = io.BytesIO()
-    pdf = canvas.Canvas(buffer, pagesize=letter)
+    report_text = f"""
+    ЗВІТ З МОДЕЛЮВАННЯ СТРУМУ
+    =========================
     
-    # Заголовок
-    pdf.setFont("Helvetica-Bold", 16)
-    pdf.drawString(100, 750, "ЗВІТ З МОДЕЛЮВАННЯ СТРУМУ")
+    Параметри моделювання:
+    - Тип поля: {data['field_type']}
+    - Напруженість поля E₀: {data['E0']} В/м
+    - Початковий струм j₀: {data['j0']} А/м²
+    - Час моделювання: {data['t_max']} с
+    - Температура: {data.get('T_common', data.get('T_super', data.get('T_normal', 'N/A')))} K
     
-    # Параметри моделювання
-    pdf.setFont("Helvetica", 12)
-    pdf.drawString(100, 700, "Параметри моделювання:")
-    pdf.drawString(120, 680, f"- Тип поля: {data['field_type']}")
-    pdf.drawString(120, 660, f"- Напруженість поля E₀: {data['E0']} В/м")
-    pdf.drawString(120, 640, f"- Початковий струм j₀: {data['j0']} А/м²")
-    pdf.drawString(120, 620, f"- Час моделювання: {data['t_max']} с")
-    pdf.drawString(120, 600, f"- Температура: {data.get('T_common', data.get('T_super', data.get('T_normal', 'N/A')))} K")
+    Результати:
+    - Надпровідник: {data.get('super_desc', 'N/A')}
+    - Звичайний метал: {data.get('normal_desc', 'N/A')}
     
-    # Результати
-    pdf.drawString(100, 560, "Результати:")
-    pdf.drawString(120, 540, f"- Надпровідник: {data.get('super_desc', 'N/A')}")
-    pdf.drawString(120, 520, f"- Звичайний метал: {data.get('normal_desc', 'N/A')}")
+    Висновки: {data.get('conclusion', 'Порівняльний аналіз динаміки струму')}
+    """
     
-    # Висновки
-    pdf.drawString(100, 480, "Висновки:")
-    pdf.drawString(120, 460, data.get('conclusion', 'Порівняльний аналіз динаміки струму'))
-    
-    pdf.save()
+    buffer.write(report_text.encode('utf-8'))
     buffer.seek(0)
     return buffer
 
@@ -220,27 +210,26 @@ def main():
             st.write(f"**Температура:** {T_multi} K")
 
     with col2:
-        st.header("📄 Експорт результатів")
-        if st.button("📥 Згенерувати PDF звіт", use_container_width=True):
-            report_data = {
-                'field_type': field_type,
-                'E0': E0,
-                'j0': j0,
-                't_max': t_max,
-                'super_desc': "Необмежене зростання струму",
-                'normal_desc': "Експоненційне насичення", 
-                'conclusion': "Порівняльний аналіз показує фундаментальну різницю у динаміці струму"
-            }
-            
-            pdf_buffer = create_pdf_report(report_data)
-            st.download_button(
-                label="⬇️ Завантажити PDF звіт",
-                data=pdf_buffer,
-                file_name="звіт_моделювання_струму.pdf",
-                mime="application/pdf",
-                use_container_width=True
-            )
-
+    st.header("📄 Експорт результатів")
+    if st.button("📥 Згенерувати звіт", use_container_width=True):
+        report_data = {
+            'field_type': field_type,
+            'E0': E0,
+            'j0': j0,
+            't_max': t_max,
+            'super_desc': "Необмежене зростання струму",
+            'normal_desc': "Експоненційне насичення", 
+            'conclusion': "Порівняльний аналіз показує фундаментальну різницю у динаміці струму"
+        }
+        
+        txt_buffer = create_pdf_report(report_data)
+        st.download_button(
+            label="⬇️ Завантажити звіт (.txt)",
+            data=txt_buffer,
+            file_name="звіт_моделювання_струму.txt",
+            mime="text/plain",
+            use_container_width=True
+        )
     # КРАСИВА ТАБЛИЦЯ З МОЖЛИВІСТЮ РОЗГОРНУТИ
     st.header("📋 Порівняльна таблиця властивостей")
     

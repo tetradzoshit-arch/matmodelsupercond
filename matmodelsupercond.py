@@ -33,11 +33,10 @@ def tau_temperature_dependence(T):
     if T < Tc:
         return tau_imp * (1 + (T / Tc)**3)
     else:
-        return tau_imp * (T / Tc)  # Більш реалістична залежність для нормального стану
+        return tau_imp * (T / Tc)
 
 def calculate_superconducting_current(t, E_type, E0=1.0, a=1.0, omega=1.0, j0=0.0, T=4.2):
     """Розрахунок струму в надпровідному стані - рівняння Лондонів"""
-    # Концентрація надпровідних електронів
     if T < Tc:
         ns = n0 * (1.0 - (T / Tc)**4.0)
     else:
@@ -50,7 +49,7 @@ def calculate_superconducting_current(t, E_type, E0=1.0, a=1.0, omega=1.0, j0=0.
     elif E_type == "Лінійне":
         return j0 + K * (a * t**2) / 2
     elif E_type == "Синусоїдальне":
-        return j0 + (K * E0 / omega) * np.sin(omega * t)
+        return j0 + (K * E0 / omega) * np.sin(omega * t)  # ВИПРАВЛЕНО: sin замість (1-cos)
 
 def calculate_normal_current_drude(t, E_type, T, E0=1.0, a=1.0, omega=1.0, j0=0.0):
     """Розрахунок струму в звичайному стані - модель Друде з перехідним процесом"""
@@ -63,11 +62,12 @@ def calculate_normal_current_drude(t, E_type, T, E0=1.0, a=1.0, omega=1.0, j0=0.
         return j0 * np.exp(-t/tau_T) + sigma * a * (t - tau_T * (1.0 - np.exp(-t/tau_T)))
     elif E_type == "Синусоїдальне":
         omega_tau_sq = (omega * tau_T)**2.0
-        amp_factor = sigma * E0 / np.sqrt(1.0 + omega_tau_sq)  # ВИПРАВЛЕНА АМПЛІТУДА
+        amp_factor = (sigma * E0) / np.sqrt(1.0 + omega_tau_sq)  # ВИПРАВЛЕНО
         phase_shift = np.arctan(omega * tau_T)
-        J_steady = amp_factor * np.sin(omega * t - phase_shift)  # БЕЗ E0 в множенні
-        J_transient = j0 * np.exp(-t / tau_T)
-    return J_transient + J_steady
+        J_steady = amp_factor * np.sin(omega * t - phase_shift)  # ВИПРАВЛЕНО
+        C = j0 - amp_factor * np.sin(-phase_shift)  # ВИПРАВЛЕНО
+        J_transient = C * np.exp(-t / tau_T)
+        return J_transient + J_steady
 
 def calculate_normal_current_ohm(t, E_type, T, E0=1.0, a=1.0, omega=1.0, j0=0.0):
     """Розрахунок струму в звичайному стані - закон Ома (стаціонарний)"""
@@ -163,7 +163,6 @@ def analyze_mathematical_characteristics(t, j_data, state_name, field_type, omeg
             analysis['Тип функції'] = "Експоненційна"
     elif field_type == "Синусоїдальне":
         analysis['Тип функції'] = "Коливальна"
-        # ВИПРАВЛЕННЯ: перевірка на наявність omega
         if omega and omega > 0:
             analysis['Період'] = f"{2*np.pi/omega:.2f} с"
         else:
@@ -171,174 +170,152 @@ def analyze_mathematical_characteristics(t, j_data, state_name, field_type, omeg
     
     return analysis
 
-def create_comprehensive_pdf_report(input_data, physical_analyses, math_analyses, saved_plots):
-    """Створення красивого PDF звіту з таблицями"""
+def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots):
+    """Створення PDF звіту"""
     try:
         from reportlab.lib.pagesizes import A4
         from reportlab.pdfgen import canvas
         from reportlab.pdfbase import pdfmetrics
         from reportlab.pdfbase.ttfonts import TTFont
-        from reportlab.lib import colors
-        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-        from reportlab.lib.styles import getSampleStyleSheet
-        from reportlab.lib.pagesizes import letter
         import io
         
         buffer = io.BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=A4)
-        styles = getSampleStyleSheet()
-        story = []
+        pdf = canvas.Canvas(buffer, pagesize=A4)
+        
+        # Встановлюємо шрифт, що підтримує кирилицю
+        try:
+            pdfmetrics.registerFont(TTFont('DejaVuSans', 'DejaVuSans.ttf'))
+            font_name = 'DejaVuSans'
+        except:
+            try:
+                pdfmetrics.registerFont(TTFont('Arial', 'arial.ttf'))
+                font_name = 'Arial'
+            except:
+                font_name = 'Helvetica'
         
         # Заголовок
-        title_style = styles['Heading1']
-        title_style.alignment = 1
-        title = Paragraph("ЗВІТ З МОДЕЛЮВАННЯ СТРУМУ В НІОБІЇ", title_style)
-        story.append(title)
-        story.append(Spacer(1, 20))
+        pdf.setFont(font_name, 16)
+        pdf.drawString(100, 800, "ЗВІТ З МОДЕЛЮВАННЯ СТРУМУ В НІОБІЇ")
         
-        # Вхідні параметри
-        story.append(Paragraph("Вхідні параметри моделювання:", styles['Heading2']))
-        input_table_data = [
-            ['Параметр', 'Значення'],
-            ['Тип поля', input_data['field_type']],
-            ['Напруженість поля E₀', f"{input_data['E0']} В/м"],
-            ['Початковий струм j₀', f"{input_data['j0']} А/м²"],
-            ['Час моделювання', f"{input_data['t_max']} с"],
-            ['Температура', f"{input_data['T_common']} K"],
-        ]
+        pdf.setFont(font_name, 12)
+        y_position = 750
         
-        input_table = Table(input_table_data, colWidths=[200, 200])
-        input_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.darkblue),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 12),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black)
-        ]))
-        story.append(input_table)
-        story.append(Spacer(1, 20))
+        # Параметри моделювання
+        pdf.drawString(100, y_position, "Параметри моделювання:")
+        y_position -= 20
+        pdf.drawString(120, y_position, f"- Тип поля: {input_data['field_type']}")
+        y_position -= 20
+        pdf.drawString(120, y_position, f"- Напруженість поля E₀: {input_data['E0']} В/м")
+        y_position -= 20
+        pdf.drawString(120, y_position, f"- Початковий струм j₀: {input_data['j0']} А/м²")
+        y_position -= 20
+        pdf.drawString(120, y_position, f"- Час моделювання: {input_data['t_max']} с")
+        y_position -= 20
+        pdf.drawString(120, y_position, f"- Температура: {input_data['T_common']} K")
+        y_position -= 30
         
-        # Порівняльна таблиця фізичного аналізу
+        # Фізичний аналіз
         if physical_analyses:
-            story.append(Paragraph("Порівняльний фізичний аналіз:", styles['Heading2']))
-            phys_data = [['Стан', 'Температура', 'j(0)', 'j(t_max)', 'j_max', 'Поведінка']]
+            pdf.drawString(100, y_position, "Фізичний аналіз:")
+            y_position -= 20
+            
             for analysis in physical_analyses:
-                phys_data.append([
-                    analysis.get('Стан', ''),
-                    analysis.get('Температура', ''),
-                    analysis.get('j(0)', ''),
-                    analysis.get('j(t_max)', ''),
-                    analysis.get('j_max', ''),
-                    analysis.get('Поведінка', '')
-                ])
-            
-            phys_table = Table(phys_data, colWidths=[80, 70, 80, 80, 80, 100])
-            phys_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.darkgreen),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 10),
-                ('BACKGROUND', (0, 1), (-1, -1), colors.lightgreen),
-                ('GRID', (0, 0), (-1, -1), 1, colors.black),
-                ('FONTSIZE', (0, 1), (-1, -1), 8)
-            ]))
-            story.append(phys_table)
-            story.append(Spacer(1, 20))
+                pdf.drawString(120, y_position, f"{analysis['Стан']} (T={analysis['Температура']}):")
+                y_position -= 15
+                pdf.drawString(140, y_position, f"j(0) = {analysis['j(0)']}, j_max = {analysis['j_max']}")
+                y_position -= 15
+                pdf.drawString(140, y_position, f"Поведінка: {analysis['Поведінка']}")
+                y_position -= 20
+                
+                if y_position < 100:
+                    pdf.showPage()
+                    pdf.setFont(font_name, 12)
+                    y_position = 750
         
-        # Порівняльна таблиця математичного аналізу
+        # Математичний аналіз
         if math_analyses:
-            story.append(Paragraph("Порівняльний математичний аналіз:", styles['Heading2']))
-            math_data = [['Функція', 'f(0)', 'max f(t)', 'min f(t)', 'Тип функції', 'Екстремуми']]
+            pdf.drawString(100, y_position, "Математичний аналіз:")
+            y_position -= 20
+            
             for analysis in math_analyses:
-                math_data.append([
-                    analysis.get('Функція', ''),
-                    analysis.get('f(0)', ''),
-                    analysis.get('max f(t)', ''),
-                    analysis.get('min f(t)', ''),
-                    analysis.get('Тип функції', ''),
-                    analysis.get('Екстремуми', '')
-                ])
-            
-            math_table = Table(math_data, colWidths=[80, 70, 70, 70, 80, 60])
-            math_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.purple),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 10),
-                ('BACKGROUND', (0, 1), (-1, -1), colors.lavender),
-                ('GRID', (0, 0), (-1, -1), 1, colors.black),
-                ('FONTSIZE', (0, 1), (-1, -1), 8)
-            ]))
-            story.append(math_table)
-            story.append(Spacer(1, 20))
+                pdf.drawString(120, y_position, f"{analysis['Функція']}:")
+                y_position -= 15
+                pdf.drawString(140, y_position, f"Тип: {analysis['Тип функції']}, Екстремуми: {analysis['Екстремуми']}")
+                y_position -= 15
+                pdf.drawString(140, y_position, f"f(0) = {analysis['f(0)']}, f(t_max) = {analysis['f(t_max)']}")
+                y_position -= 20
+                
+                if y_position < 100:
+                    pdf.showPage()
+                    pdf.setFont(font_name, 12)
+                    y_position = 750
         
-        # Таблиця збережених графіків
+        # Збережені графіки
         if saved_plots:
-            story.append(Paragraph("Збережені графіки для порівняння:", styles['Heading2']))
-            saved_data = [['№', 'Стан', 'Температура', 'Тип поля', 'Модель', 'j_max']]
-            for i, plot in enumerate(saved_plots):
-                state = plot.get('state', '')
-                temp = plot.get('temperature', '')
-                field = plot.get('field_type', '')
-                model = plot.get('model', '')
-                
-                if 'j_data' in plot:
-                    j_max = f"{np.max(plot['j_data']):.2e}"
-                elif 'j_super' in plot and 'j_normal' in plot:
-                    j_max = f"{max(np.max(plot['j_super']), np.max(plot['j_normal'])):.2e}"
-                else:
-                    j_max = "N/A"
-                
-                saved_data.append([str(i+1), state, f"{temp}K", field, model, j_max])
+            pdf.drawString(100, y_position, "Збережені графіки:")
+            y_position -= 20
             
-            saved_table = Table(saved_data, colWidths=[30, 70, 60, 70, 90, 70])
-            saved_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.darkorange),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 10),
-                ('BACKGROUND', (0, 1), (-1, -1), colors.orange),
-                ('GRID', (0, 0), (-1, -1), 1, colors.black),
-                ('FONTSIZE', (0, 1), (-1, -1), 8)
-            ]))
-            story.append(saved_table)
-            story.append(Spacer(1, 20))
+            for i, plot in enumerate(saved_plots):
+                pdf.drawString(120, y_position, f"Графік {i+1}: {plot['state']}, T={plot['temperature']}K")
+                y_position -= 15
+                
+                if y_position < 100:
+                    pdf.showPage()
+                    pdf.setFont(font_name, 12)
+                    y_position = 750
         
         # Висновки
-        story.append(Paragraph("Основні висновки:", styles['Heading2']))
+        y_position -= 20
+        pdf.drawString(100, y_position, "Висновки:")
+        y_position -= 20
         conclusions = [
             "• Надпровідник демонструє принципово іншу поведінку порівняно з звичайним металом",
-            "• При температурах нижче T_c спостерігається ефект Мейснера-Оксенфельда",
+            "• При температурах нижче T_c спостерігається ефект Мейснера-Оксенфельда", 
             "• Різні типи електричних полів викликають різну динаміку струму",
             "• Моделі адекватно описують фізичні процеси в ніобії"
         ]
         
         for conclusion in conclusions:
-            story.append(Paragraph(conclusion, styles['Normal']))
-            story.append(Spacer(1, 5))
+            pdf.drawString(120, y_position, conclusion)
+            y_position -= 15
+            if y_position < 100:
+                pdf.showPage()
+                pdf.setFont(font_name, 12)
+                y_position = 750
         
-        doc.build(story)
+        pdf.save()
         buffer.seek(0)
         return buffer
         
     except Exception as e:
-        # Резервний варіант без красивих таблиць
+        # Резервний варіант - текстовий файл з українською
         buffer = BytesIO()
-        report_text = "ЗВІТ З МОДЕЛЮВАННЯ СТРУМУ В НІОБІЇ\n\n"
-        report_text += "Вхідні параметри:\n"
-        for key, value in input_data.items():
-            report_text += f"{key}: {value}\n"
-        report_text += "\nФізичний аналіз:\n"
+        report_text = f"""
+        ЗВІТ З МОДЕЛЮВАННЯ СТРУМУ В НІОБІЇ
+        
+        Параметри моделювання:
+        - Тип поля: {input_data['field_type']}
+        - Напруженість поля E₀: {input_data['E0']} В/м
+        - Початковий струм j₀: {input_data['j0']} А/м²
+        - Час моделювання: {input_data['t_max']} с
+        - Температура: {input_data['T_common']} K
+        
+        Фізичний аналіз:
+        """
+        
         for analysis in physical_analyses:
-            for key, value in analysis.items():
-                report_text += f"{key}: {value}\n"
-            report_text += "\n"
+            report_text += f"\n{analysis['Стан']} (T={analysis['Температура']}):"
+            report_text += f"\n  j(0) = {analysis['j(0)']}, j_max = {analysis['j_max']}"
+            report_text += f"\n  Поведінка: {analysis['Поведінка']}"
+        
+        report_text += "\n\nМатематичний аналіз:"
+        for analysis in math_analyses:
+            report_text += f"\n{analysis['Функція']}:"
+            report_text += f"\n  Тип: {analysis['Тип функції']}, Екстремуми: {analysis['Екстремуми']}"
+            report_text += f"\n  f(0) = {analysis['f(0)']}, f(t_max) = {analysis['f(t_max)']}"
+        
+        report_text += "\n\nВисновки: Порівняльний аналіз показує фундаментальну різницю у динаміці струму."
+        
         buffer.write(report_text.encode('utf-8'))
         buffer.seek(0)
         return buffer
@@ -379,20 +356,15 @@ def main():
         if comparison_mode == "Порівняння":
             T_common = st.slider("Температура (K)", 0.1, 18.4, 4.2, 0.1)
             current_temp = T_common
-            # Автоматичне визначення стану
             current_state = determine_state(T_common)
             st.info(f"🔍 Автоматичне визначення: {current_state}")
             
         elif comparison_mode == "Один стан":
-            # ВИПРАВЛЕННЯ: температура від 0.1 до 18.4K для обох станів
             T_input = st.slider("Температура (K)", 0.1, 18.4, 4.2, 0.1)
             current_temp = T_input
-            
-            # Автоматичне визначення стану
             auto_state = determine_state(T_input)
             st.info(f"🔍 Автоматичне визначення: {auto_state}")
             
-            # Дозволяємо користувачу вибрати модель для нормального стану
             if auto_state == "Звичайний метал":
                 metal_model = st.radio("Модель для металу:", 
                                      ["Модель Друде (з перехідним процесом)", "Закон Ома (стаціонарний)"])
@@ -446,7 +418,7 @@ def main():
                     )
                     plot_data['state'] = 'Порівняння'
                     plot_data['model'] = 'Друде'
-                else:  # Кілька графіків
+                else:
                     plot_data['j_super'] = calculate_superconducting_current(
                         plot_data['t'], field_type, E0, a, omega, j0, T_multi
                     )
@@ -459,7 +431,6 @@ def main():
                 st.session_state.saved_plots.append(plot_data)
                 st.success(f"Графік збережено! Всього збережено: {len(st.session_state.saved_plots)}")
 
-        # Кнопка очищення всіх збережених графіків
         if st.session_state.saved_plots and st.button("🗑️ Очистити всі збережені графіки", use_container_width=True):
             st.session_state.saved_plots = []
             st.success("Всі збережені графіки видалено!")
@@ -522,7 +493,6 @@ def main():
                 st.plotly_chart(fig_saved, use_container_width=True)
         
         else:
-            # Основний графік для інших режимів
             st.header("📈 Графіки струму")
             
             t = np.linspace(0, t_max, 1000)
@@ -570,7 +540,7 @@ def main():
                     physical_analyses = [analyze_physical_characteristics(t, j_data, "Звичайний метал", field_type, current_temp, omega)]
                     math_analyses = [analyze_mathematical_characteristics(t, j_data, "Звичайний метал", field_type, omega)]
             
-            else:  # Кілька графіків
+            else:
                 j_super = calculate_superconducting_current(t, field_type, E0, a, omega, j0, T_multi)
                 j_normal = calculate_normal_current_drude(t, field_type, T_multi, E0, a, omega, j0)
                 
@@ -597,7 +567,6 @@ def main():
             
             st.plotly_chart(fig, use_container_width=True)
             
-            # Аналітичні таблиці
             if physical_analyses:
                 st.header("📊 Фізичний аналіз")
                 physical_df = pd.DataFrame(physical_analyses)
@@ -627,7 +596,6 @@ def main():
         st.write(f"**j₀ =** {j0} А/м²")
         st.write(f"**Температура:** {current_temp} K")
         
-        # Автоматичне визначення стану
         current_state = determine_state(current_temp)
         if current_state == "Надпровідник":
             st.success("✅ Надпровідний стан (T < T_c)")
@@ -636,7 +604,6 @@ def main():
         
         st.write(f"**Критична температура T_c:** {Tc} K")
 
-        # Інформація про фізичні константи ніобію
         with st.expander("Фізичні константи ніобію"):
             st.write(f"**e =** {e:.3e} Кл")
             st.write(f"**m =** {m:.3e} кг")
@@ -656,7 +623,6 @@ def main():
                 'T_common': current_temp,
             }
             
-            # Отримуємо аналізи для поточного графіка
             t = np.linspace(0, t_max, 1000)
             physical_analyses_for_report = []
             math_analyses_for_report = []
@@ -686,7 +652,7 @@ def main():
                     physical_analyses_for_report = [analyze_physical_characteristics(t, j_data, "Звичайний метал", field_type, current_temp, omega)]
                     math_analyses_for_report = [analyze_mathematical_characteristics(t, j_data, "Звичайний метал", field_type, omega)]
             
-            pdf_buffer = create_comprehensive_pdf_report(input_data, physical_analyses_for_report, math_analyses_for_report, st.session_state.saved_plots)
+            pdf_buffer = create_pdf_report(input_data, physical_analyses_for_report, math_analyses_for_report, st.session_state.saved_plots)
             st.download_button(
                 label="⬇️ Завантажити PDF звіт",
                 data=pdf_buffer,
@@ -697,3 +663,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+       

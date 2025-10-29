@@ -46,7 +46,6 @@ def create_pdf_report(data):
     """Створення PDF звіту"""
     buffer = BytesIO()
     
-    # Створюємо простий текстовий звіт
     report_text = f"""
     ЗВІТ З МОДЕЛЮВАННЯ СТРУМУ
     =========================
@@ -136,61 +135,59 @@ def main():
             st.session_state.saved_plots = []
             st.success("Всі графіки очищено!")
 
-    # Основний контент
-    col1, col2 = st.columns([2, 1])
+    # Основний контент - тільки графіки
+    st.header("📈 Графіки струму")
     
-    with col1:
-        st.header("📈 Графіки струму")
+    t = np.linspace(0, t_max, 1000)
+    fig = go.Figure()
+    
+    if comparison_mode == "Порівняння":
+        j_super = calculate_superconducting_current(t, field_type, E0, a, omega, j0)
+        j_normal = calculate_normal_current(t, field_type, T_common, E0, a, omega, j0)
         
-        t = np.linspace(0, t_max, 1000)
-        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=t, y=j_super, name='Надпровідник', 
+                               line=dict(color='red', width=3)))
+        fig.add_trace(go.Scatter(x=t, y=j_normal, name='Звичайний метал',
+                               line=dict(color='blue', width=3)))
         
-        if comparison_mode == "Порівняння":
+    elif comparison_mode == "Один стан":
+        if 'T_super' in locals():
             j_super = calculate_superconducting_current(t, field_type, E0, a, omega, j0)
-            j_normal = calculate_normal_current(t, field_type, T_common, E0, a, omega, j0)
-            
-            fig.add_trace(go.Scatter(x=t, y=j_super, name='Надпровідник', 
+            fig.add_trace(go.Scatter(x=t, y=j_super, name='Надпровідник',
                                    line=dict(color='red', width=3)))
+        else:
+            j_normal = calculate_normal_current(t, field_type, T_normal, E0, a, omega, j0)
             fig.add_trace(go.Scatter(x=t, y=j_normal, name='Звичайний метал',
                                    line=dict(color='blue', width=3)))
-            
-        elif comparison_mode == "Один стан":
-            if 'T_super' in locals():
-                j_super = calculate_superconducting_current(t, field_type, E0, a, omega, j0)
-                fig.add_trace(go.Scatter(x=t, y=j_super, name='Надпровідник',
-                                       line=dict(color='red', width=3)))
-            else:
-                j_normal = calculate_normal_current(t, field_type, T_normal, E0, a, omega, j0)
-                fig.add_trace(go.Scatter(x=t, y=j_normal, name='Звичайний метал',
-                                       line=dict(color='blue', width=3)))
-        
-        else:  # Кілька графіків
-            # Поточний графік
-            j_super = calculate_superconducting_current(t, field_type, E0, a, omega, j0)
-            j_normal = calculate_normal_current(t, field_type, T_multi, E0, a, omega, j0)
-            
-            fig.add_trace(go.Scatter(x=t, y=j_super, name=f'Надпровідник (поточний)',
-                                   line=dict(color='red', width=3)))
-            fig.add_trace(go.Scatter(x=t, y=j_normal, name=f'Звичайний (поточний)',
-                                   line=dict(color='blue', width=3)))
-            
-            # Додаємо збережені графіки
-            for i, saved_plot in enumerate(st.session_state.saved_plots):
-                j_super_saved = calculate_superconducting_current(t, saved_plot['field_type'], 
-                                                                saved_plot['E0'], a, omega, saved_plot['j0'])
-                fig.add_trace(go.Scatter(x=t, y=j_super_saved, name=f'Надпровідник {i+1}',
-                                       line=dict(dash='dash')))
-        
-        fig.update_layout(
-            title="Динаміка густини струму",
-            xaxis_title="Час (с)",
-            yaxis_title="Густина струму (А/м²)",
-            height=500
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
     
-    with col2:
+    else:  # Кілька графіків
+        j_super = calculate_superconducting_current(t, field_type, E0, a, omega, j0)
+        j_normal = calculate_normal_current(t, field_type, T_multi, E0, a, omega, j0)
+        
+        fig.add_trace(go.Scatter(x=t, y=j_super, name=f'Надпровідник (поточний)',
+                               line=dict(color='red', width=3)))
+        fig.add_trace(go.Scatter(x=t, y=j_normal, name=f'Звичайний (поточний)',
+                               line=dict(color='blue', width=3)))
+        
+        for i, saved_plot in enumerate(st.session_state.saved_plots):
+            j_super_saved = calculate_superconducting_current(t, saved_plot['field_type'], 
+                                                            saved_plot['E0'], a, omega, saved_plot['j0'])
+            fig.add_trace(go.Scatter(x=t, y=j_super_saved, name=f'Надпровідник {i+1}',
+                                   line=dict(dash='dash')))
+    
+    fig.update_layout(
+        title="Динаміка густини струму",
+        xaxis_title="Час (с)",
+        yaxis_title="Густина струму (А/м²)",
+        height=500
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Тепер таблиця і вся інформація під графіками
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
         st.header("📊 Аналіз результатів")
         
         # Інформація про параметри
@@ -211,20 +208,76 @@ def main():
         else:
             st.write(f"**Температура:** {T_multi} K")
 
-        # ТАБЛИЦЯ ПОРІВНЯННЯ
-        st.subheader("📋 Порівняльна таблиця")
-        
+    with col2:
+        st.header("📄 Експорт результатів")
+        if st.button("📥 Згенерувати PDF звіт", use_container_width=True):
+            report_data = {
+                'field_type': field_type,
+                'E0': E0,
+                'j0': j0,
+                't_max': t_max,
+                'super_desc': "Необмежене зростання струму",
+                'normal_desc': "Експоненційне насичення", 
+                'conclusion': "Порівняльний аналіз показує фундаментальну різницю у динаміці струму"
+            }
+            
+            pdf_buffer = create_pdf_report(report_data)
+            st.download_button(
+                label="⬇️ Завантажити PDF звіт",
+                data=pdf_buffer,
+                file_name="звіт_моделювання_струму.pdf",
+                mime="application/pdf",
+                use_container_width=True
+            )
+
+    # КРАСИВА ТАБЛИЦЯ З МОЖЛИВІСТЮ РОЗГОРНУТИ
+    st.header("📋 Порівняльна таблиця властивостей")
+    
+    with st.expander("🎯 Розгорнути таблицю порівняння", expanded=True):
         comparison_data = {
-            "Параметр": ["Поведінка струму", "Наявність опору", "Фазовий зсув", "Стаціонарний стан"],
-            "Надпровідник": ["Необмежене зростання", "Відсутній", "π/2", "Не досягається"],
-            "Звичайний метал": ["Експоненційне насичення", "Присутній", "arctg(ωτ)", "Досягається"]
+            "Характеристика": [
+                "Поведінка струму в статичному полі", 
+                "Наявність опору",
+                "Фазовий зсув у змінному полі", 
+                "Стаціонарний стан",
+                "Час релаксації",
+                "Температурна залежність"
+            ],
+            "Надпровідник": [
+                "Необмежене лінійне зростання",
+                "Відсутній", 
+                "π/2 (90°)",
+                "Не досягається",
+                "Не має значення",
+                "T < Tкрит"
+            ],
+            "Звичайний метал": [
+                "Експоненційне насичення",
+                "Присутній",
+                "arctg(ωτ) - залежить від частоти", 
+                "Досягається (j = σE)",
+                "Ключовий параметр",
+                "Будь-яка температура"
+            ]
         }
         
-        st.table(comparison_data)
+        df = pd.DataFrame(comparison_data)
+        st.dataframe(
+            df,
+            use_container_width=True,
+            hide_index=True,
+            height=300
+        )
+        
+        st.caption("Таблиця 1: Порівняння динаміки струму в надпровідному та звичайному станах")
 
-        # ДОВІДКА
-        st.subheader("📖 Довідка")
-        with st.expander("Фізичні основи моделі"):
+    # ДОВІДКА
+    st.header("📖 Довідка")
+    
+    col_info1, col_info2 = st.columns(2)
+    
+    with col_info1:
+        with st.expander("🔬 Фізичні основи моделі", expanded=False):
             st.write("""
             **Надпровідний стан (рівняння Лондонів):**
             - Відсутність опору
@@ -236,35 +289,25 @@ def main():
             - Експоненційне насичення струму
             - Частотно-залежний фазовий зсув
             """)
-        
-        with st.expander("Математичні моделі"):
+    
+    with col_info2:
+        with st.expander("🧮 Математичні моделі", expanded=False):
             st.write("""
-            **Надпровідник:** dj/dt = (e²nₛ/m)E(t)
-            **Звичайний метал:** dj/dt + j/τ = (σ/τ)E(t)
+            **Надпровідник:** 
+            ```python
+            dj/dt = (e²nₛ/m)E(t)
+            ```
             
-            де τ - час релаксації, σ - провідність
+            **Звичайний метал:** 
+            ```python
+            dj/dt + j/τ = (σ/τ)E(t)
+            ```
+            
+            де:
+            - τ - час релаксації
+            - σ - провідність
+            - nₛ - концентрація електронів
             """)
-
-        # ЕКСПОРТ В PDF
-        st.subheader("📄 Експорт результатів")
-        if st.button("📥 Згенерувати PDF звіт"):
-            report_data = {
-                'field_type': field_type,
-                'E0': E0,
-                'j0': j0,
-                't_max': t_max,
-                'super_desc': "Необмежене зростання струму" if comparison_mode != "Кілька графіків" else "Множинні криві",
-                'normal_desc': "Експоненційне насичення" if comparison_mode != "Кілька графіків" else "Множинні кризі",
-                'conclusion': "Порівняльний аналіз показує фундаментальну різницю у динаміці струму"
-            }
-            
-            pdf_buffer = create_pdf_report(report_data)
-            st.download_button(
-                label="⬇️ Завантажити PDF звіт",
-                data=pdf_buffer,
-                file_name="звіт_моделювання_струму.pdf",
-                mime="application/pdf"
-            )
 
 if __name__ == "__main__":
     main()

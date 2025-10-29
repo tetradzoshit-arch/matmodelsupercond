@@ -142,112 +142,170 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
         buffer = io.BytesIO()
         pdf = canvas.Canvas(buffer, pagesize=A4)
         
-        # Спробуємо використати стандартний шрифт, що підтримує кирилицю
+        # Встановлюємо шрифт, що підтримує кирилицю
         try:
-            # Для Streamlit Cloud спробуємо DejaVuSans
             pdfmetrics.registerFont(TTFont('DejaVuSans', 'DejaVuSans.ttf'))
             font_name = 'DejaVuSans'
         except:
-            # Якщо не вийшло, використовуємо Helvetica (частково підтримує кирилицю)
-            font_name = 'Helvetica'
+            try:
+                pdfmetrics.registerFont(TTFont('Arial', 'arial.ttf'))
+                font_name = 'Arial'
+            except:
+                font_name = 'Helvetica'
         
         # Заголовок
         pdf.setFont(font_name, 16)
         pdf.drawString(100, 800, "ЗВІТ З МОДЕЛЮВАННЯ СТРУМУ")
         
         pdf.setFont(font_name, 12)
-        y_position = 770
+        y_position = 750
         
         # Параметри моделювання
         pdf.drawString(100, y_position, "Параметри моделювання:")
         y_position -= 20
-        pdf.drawString(120, y_position, f"Тип поля: {input_data['field_type']}")
+        pdf.drawString(120, y_position, f"- Тип поля: {input_data['field_type']}")
         y_position -= 20
-        pdf.drawString(120, y_position, f"Напруженість E: {input_data['E0']} В/м")
+        pdf.drawString(120, y_position, f"- Напруженість поля E: {input_data['E0']} В/м")
         y_position -= 20
-        pdf.drawString(120, y_position, f"Початковий струм j: {input_data['j0']} А/м²")
+        pdf.drawString(120, y_position, f"- Початковий струм j: {input_data['j0']} А/м²")
         y_position -= 20
-        pdf.drawString(120, y_position, f"Час: {input_data['t_max']} с")
+        pdf.drawString(120, y_position, f"- Час моделювання: {input_data['t_max']} с")
         y_position -= 20
-        pdf.drawString(120, y_position, f"Температура: {input_data['T_common']} K")
+        pdf.drawString(120, y_position, f"- Температура: {input_data['T_common']} K")
         y_position -= 30
-        
-        # Фізичний аналіз
+
+        # Фізичний аналіз - ТАБЛИЦЯ
         if physical_analyses:
             pdf.drawString(100, y_position, "Фізичний аналіз:")
-            y_position -= 20
+            y_position -= 30
             
-            for analysis in physical_analyses:
-                pdf.drawString(120, y_position, f"{analysis['Стан']}:")
-                y_position -= 15
-                pdf.drawString(140, y_position, f"j(0) = {analysis['j(0)']}")
-                y_position -= 15
-                pdf.drawString(140, y_position, f"j_max = {analysis['j_max']}")
-                y_position -= 15
-                pdf.drawString(140, y_position, f"Поведінка: {analysis['Поведінка']}")
-                y_position -= 20
+            # Заголовок таблиці
+            col_widths = [120, 80, 100, 100, 150]
+            row_height = 20
+            
+            pdf.setFillColorRGB(0.8, 0.8, 1.0)
+            pdf.rect(100, y_position - row_height, sum(col_widths), row_height, fill=1)
+            pdf.setFillColorRGB(0, 0, 0)
+            
+            headers = ["Стан", "Температура", "j(0)", "j_max", "Поведінка"]
+            x_pos = 100
+            for i, header in enumerate(headers):
+                pdf.drawString(x_pos + 5, y_position - 15, header)
+                x_pos += col_widths[i]
+            
+            y_position -= row_height
+            
+            # Дані таблиці
+            for i, analysis in enumerate(physical_analyses):
+                if i % 2 == 0:
+                    pdf.setFillColorRGB(0.95, 0.95, 0.95)
+                else:
+                    pdf.setFillColorRGB(1, 1, 1)
                 
+                pdf.rect(100, y_position - row_height, sum(col_widths), row_height, fill=1)
+                pdf.setFillColorRGB(0, 0, 0)
+                
+                x_pos = 100
+                cells = [
+                    analysis.get('Стан', ''),
+                    analysis.get('Температура', ''),
+                    analysis.get('j(0)', ''),
+                    analysis.get('j_max', ''),
+                    analysis.get('Поведінка', '')[:20]  # Обрізаємо довгі тексти
+                ]
+                
+                for j, cell in enumerate(cells):
+                    pdf.drawString(x_pos + 5, y_position - 15, cell)
+                    x_pos += col_widths[j]
+                
+                y_position -= row_height
                 if y_position < 100:
                     pdf.showPage()
                     pdf.setFont(font_name, 12)
-                    y_position = 770
+                    y_position = 750
+                    # Перемальовуємо заголовки на новій сторінці
+                    pdf.setFillColorRGB(0.8, 0.8, 1.0)
+                    pdf.rect(100, y_position - row_height, sum(col_widths), row_height, fill=1)
+                    pdf.setFillColorRGB(0, 0, 0)
+                    x_pos = 100
+                    for k, header in enumerate(headers):
+                        pdf.drawString(x_pos + 5, y_position - 15, header)
+                        x_pos += col_widths[k]
+                    y_position -= row_height
+            
+            y_position -= 20
+
+        # Математичний аналіз - ТАБЛИЦЯ
+        if math_analyses:
+            pdf.drawString(100, y_position, "Математичний аналіз:")
+            y_position -= 30
+            
+            # Заголовок таблиці
+            col_widths = [100, 100, 80, 80, 80, 80, 80]
+            row_height = 20
+            
+            pdf.setFillColorRGB(0.8, 1.0, 0.8)
+            pdf.rect(100, y_position - row_height, sum(col_widths), row_height, fill=1)
+            pdf.setFillColorRGB(0, 0, 0)
+            
+            headers = ["Функція", "Тип", "f(0)", "f(max)", "f'(max)", "f'(min)", "f'(сер)"]
+            x_pos = 100
+            for i, header in enumerate(headers):
+                pdf.drawString(x_pos + 2, y_position - 15, header)
+                x_pos += col_widths[i]
+            
+            y_position -= row_height
+            
+            # Дані таблиці
+            for i, analysis in enumerate(math_analyses):
+                if i % 2 == 0:
+                    pdf.setFillColorRGB(0.95, 1.0, 0.95)
+                else:
+                    pdf.setFillColorRGB(1, 1, 1)
+                
+                pdf.rect(100, y_position - row_height, sum(col_widths), row_height, fill=1)
+                pdf.setFillColorRGB(0, 0, 0)
+                
+                x_pos = 100
+                cells = [
+                    analysis.get('Функція', '')[:12],
+                    analysis.get('Тип функції', '')[:10],
+                    analysis.get('f(0)', ''),
+                    analysis.get('max f(t)', ''),
+                    analysis.get("f'(max)", ''),
+                    analysis.get("f'(min)", ''),
+                    analysis.get("f'(сер)", '')
+                ]
+                
+                for j, cell in enumerate(cells):
+                    pdf.drawString(x_pos + 2, y_position - 15, cell)
+                    x_pos += col_widths[j]
+                
+                y_position -= row_height
+                if y_position < 100:
+                    pdf.showPage()
+                    pdf.setFont(font_name, 12)
+                    y_position = 750
+                    # Перемальовуємо заголовки
+                    pdf.setFillColorRGB(0.8, 1.0, 0.8)
+                    pdf.rect(100, y_position - row_height, sum(col_widths), row_height, fill=1)
+                    pdf.setFillColorRGB(0, 0, 0)
+                    x_pos = 100
+                    for k, header in enumerate(headers):
+                        pdf.drawString(x_pos + 2, y_position - 15, header)
+                        x_pos += col_widths[k]
+                    y_position -= row_height
+            
+            y_position -= 20
         
-        def analyze_mathematical_characteristics(t, j_data, state_name, field_type, omega=1.0):
-    """МАТЕМАТИЧНИЙ аналіз графіка функції"""
-    analysis = {}
-    analysis['Функція'] = state_name
-    
-    # Основні математичні характеристики
-    analysis['f(0)'] = f"{j_data[0]:.2e}"
-    analysis['f(t_max)'] = f"{j_data[-1]:.2e}"
-    analysis['max f(t)'] = f"{np.max(j_data):.2e}"
-    analysis['min f(t)'] = f"{np.min(j_data):.2e}"
-    analysis['Середнє'] = f"{np.mean(j_data):.2e}"
-    analysis['Стандартне відхилення'] = f"{np.std(j_data):.2e}"
-    
-    # Похідна - ВИПРАВЛЕНО
-    dt = t[1] - t[0]
-    dj_dt = np.gradient(j_data, dt)
-    
-    # Тільки три основні характеристики похідної
-    analysis["f'(max)"] = f"{np.max(dj_dt):.2e}"      # Максимальна швидкість зміни
-    analysis["f'(min)"] = f"{np.min(dj_dt):.2e}"      # Мінімальна швидкість зміни  
-    analysis["f'(сер)"] = f"{np.mean(dj_dt):.2e}"     # Середня швидкість зміни
-    
-    # Екстремуми
-    peaks, _ = find_peaks(j_data, prominence=np.max(j_data)*0.01)
-    valleys, _ = find_peaks(-j_data, prominence=-np.min(j_data)*0.01)
-    
-    analysis['Максимуми'] = len(peaks)
-    analysis['Мінімуми'] = len(valleys)
-    analysis['Екстремуми'] = len(peaks) + len(valleys)
-    
-    # Тип функції
-    if field_type == "Статичне":
-        if state_name == "Надпровідник":
-            analysis['Тип функції'] = "Лінійна"
-        else:
-            analysis['Тип функції'] = "Експоненційна"
-    elif field_type == "Лінійне":
-        if state_name == "Надпровідник":
-            analysis['Тип функції'] = "Квадратична"
-        else:
-            analysis['Тип функції'] = "Експоненційна"
-    elif field_type == "Синусоїдальне":
-        analysis['Тип функції'] = "Коливальна"
-        if omega and omega > 0:
-            analysis['Період'] = f"{2*np.pi/omega:.2f} с"
-        else:
-            analysis['Період'] = "∞"
-    
-    return analysis
         # Висновки
         pdf.drawString(100, y_position, "Висновки:")
         y_position -= 20
         conclusions = [
-            "Надпровідник має іншу поведінку",
-            "Різні типи полів викликають різну динаміку",
-            "Моделі описують фізичні процеси"
+            "Надпровідник демонструє принципово іншу поведінку",
+            "Різні типи полів викликають різну динаміку струму",
+            "Похідні показують швидкість зміни струму",
+            "Моделі адекватно описують фізичні процеси"
         ]
         
         for conclusion in conclusions:
@@ -255,6 +313,17 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
             y_position -= 15
         
         pdf.save()
+        buffer.seek(0)
+        return buffer
+        
+    except Exception as e:
+        # Резервний варіант
+        buffer = BytesIO()
+        report_text = "ЗВІТ З МОДЕЛЮВАННЯ СТРУМУ\n\n"
+        report_text += "Параметри моделювання:\n"
+        for key, value in input_data.items():
+            report_text += f"{key}: {value}\n"
+        buffer.write(report_text.encode('utf-8'))
         buffer.seek(0)
         return buffer
         

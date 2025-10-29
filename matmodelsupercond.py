@@ -1,26 +1,33 @@
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.signal import find_peaks
 import pandas as pd
 
-# --- НАСТРОЙКА СТРАНИЦЫ ---
-st.set_page_config(page_title="Моделювання струму", layout="wide")
-st.title("🔬 МОДЕЛЮВАННЯ ДИНАМІКИ ГУСТИНИ СТРУМУ")
-st.markdown("---")
+# --- ВЛАСНА ФУНКЦІЯ FIND_PEAKS БЕЗ SCIPY ---
+def find_peaks_simple(signal, prominence=0.1):
+    """Проста реалізація пошуку піків"""
+    peaks = []
+    max_val = np.max(signal)
+    threshold = prominence * max_val
+    
+    for i in range(1, len(signal)-1):
+        # Перевіряємо чи це локальний максимум
+        if signal[i] > signal[i-1] and signal[i] > signal[i+1]:
+            # Перевіряємо чи вище порогу
+            if signal[i] > threshold:
+                peaks.append(i)
+    
+    return np.array(peaks)
 
-# --- ФИЗИЧЕСКИЕ КОНСТАНТЫ ---
+# --- ФІЗИЧНІ КОНСТАНТИ ---
 E_CHARGE = 1.6e-19       # Заряд електрона, Кл
 M_ELECTRON = 9.1e-31     # Маса електрона, кг
 N_0 = 1.0e29             # Загальна концентрація електронів, м⁻³
 T_C = 9.2                # Критична температура (для Nb), К
-
-# Параметри залежності часу релаксації (для нормального металу T >= T_C)
 TAU_IMP = 5.0e-14        # Час релаксації при T->0 (розсіювання на домішках), с
 A_PHONON = 3.0e8         # Коефіцієнт для розсіювання на фононах (T^5 залежність)
 
 # --- ДОПОМІЖНІ ФУНКЦІЇ ---
-
 def tau_temperature_dependence(T):
     """Розраховує час релаксації tau(T) для звичайного металу"""
     if T <= 0.1:
@@ -46,9 +53,9 @@ def analyze_current_direct(t_array, j_array, field_type, model_name, is_supercon
     
     # АНАЛІТИЧНИЙ АНАЛІЗ ДЛЯ КОЖНОГО ТИПУ ПОЛЯ
     if "Синусоїдальне" in field_type:
-        # Знаходимо екстремуми для синусоїди
-        peaks, _ = find_peaks(j_array, prominence=0.1*np.max(j_array))
-        valleys, _ = find_peaks(-j_array, prominence=0.1*np.max(-j_array))
+        # Використовуємо нашу власну функцію замість scipy
+        peaks = find_peaks_simple(j_array, prominence=0.1)
+        valleys = find_peaks_simple(-j_array, prominence=0.1)
         
         analysis['peaks_count'] = len(peaks)
         if len(peaks) >= 2:

@@ -129,55 +129,33 @@ with st.sidebar:
                 # Модель Друде: dj/dt + j/τ(T) = σ(T)/τ(T) * E(t)
                 
                 if "Постійне" in field_type:
-                    # 5. j(t)=j_0 e^((-t)/τ)+σΕτ(1-e^((-t)/τ))
+                    # j(t)=j_0 e^((-t)/τ)+σΕτ(1-e^((-t)/τ))
                     J_ARRAY = J_0 * np.exp(-T_ARRAY / tau_T) + sigma * E_0 * tau_T * (1.0 - np.exp(-T_ARRAY / tau_T)) / tau_T
                     # Спрощення до оригінальної формули (з коду): j(t)=j_0 e^((-t)/τ)+σΕ_0 (1-e^((-t)/τ))
                     J_ARRAY = J_0 * np.exp(-T_ARRAY / tau_T) + sigma * E_0 * (1.0 - np.exp(-T_ARRAY / tau_T))
                     formula_label = r'$j(t) = j_0 e^{-t/\tau(T)} + \sigma(T) E_0 (1 - e^{-t/\tau(T)})$'
                 elif "Лінійне" in field_type:
-                    # Коректна формула для E(t)=at: j(t) = j_0 e^{-t/\tau} + \sigma a [t - \tau(1 - e^{-t/\tau})]
-                    # Ваша 6-та формула j(t_f)=j_0 e^((-t_f)/τ)+σaE_0 τ(1-e^((-t_f)/τ)) є некоректною.
+                    #формула для E(t)=at: j(t) = j_0 e^{-t/\tau} + \sigma a [t - \tau(1 - e^{-t/\tau})]
                     J_ARRAY = J_0 * np.exp(-T_ARRAY / tau_T) + sigma * A * (T_ARRAY - tau_T * (1.0 - np.exp(-T_ARRAY / tau_T)))
                     formula_label = r'$j(t) = j_0 e^{-t/\tau(T)} + \sigma(T) a [t - \tau(T)(1 - e^{-t/\tau(T)})]$'
                 else:  # Синусоїдальне
-                    # 7. j(t_f)=j_0 e^((-t_f)/τ)+(σΕ_0 τ)/√(1〖+(ωτ)〗^2 )(sin⁡(ωt_f-arctg(ωτ))+(σΕ_0 〖ωτ〗^2)/(1〖+(ωτ)〗^2 ) e^((-t_f)/τ)
-                    # Примітка: Ваша 7-ма формула, здається, має помилку в останньому доданку (неправильно скопійований коефіцієнт j_0).
-                    # Використовуємо коректну форму: j(t) = j_tr(t) + j_st(t)
-                    
-                    # Компоненти для формули
+                    # КОРЕКТНА формула для моделі Д
                     tau = tau_T
                     omega_tau_sq = (OMEGA * tau)**2.0
-                    
-                    # 1. Початковий струм, що затухає: j_0 e^((-t)/τ)
-                    J_TR_FROM_J0 = J_0 * np.exp(-T_ARRAY / tau)
-
-                    # 2. Амплітуда усталених коливань та фаза: (σΕ_0 τ)/√(1〖+(ωτ)〗^2 ) sin⁡(ωt-arctg(ωτ))
-                    amplitude_factor = sigma * E_0 / np.sqrt(1.0 + omega_tau_sq)
-                    phase_shift = np.arctan(OMEGA * tau)
-                    J_ST = amplitude_factor * np.sin(OMEGA * T_ARRAY - phase_shift)
-
-                    # 3. Перехідний процес від поля: j_{field,tr}
-                    C_field = (sigma * E_0 * OMEGA * tau**2.0) / (1.0 + omega_tau_sq)
-                    J_TR_FROM_FIELD = C_field * np.exp(-T_ARRAY / tau)
-                    
-                    # Повний струм: J_ARRAY = J_ST + J_TR_FROM_J0 - J_TR_FROM_FIELD
-                    # (Зверніть увагу, J_TR_FROM_FIELD - це лише частина j_{tr}. Код нижче використовує класичний розклад.)
-
-                    # Використовуємо класичний розклад з коду, бо він більш надійний і зрозумілий:
-                    
+    
                     # Амплітуда і фаза стаціонарного режиму
-                    amp_factor = sigma / np.sqrt(1.0 + omega_tau_sq)
+                    amp_factor = sigma * tau / np.sqrt(1.0 + omega_tau_sq)  # ДОДАНО tau!
+                    phase_shift = np.arctan(OMEGA * tau)
                     J_ST_CLASSIC = E_0 * amp_factor * np.sin(OMEGA * T_ARRAY - phase_shift)
-                    
-                    # Коефіцієнт перехідного процесу (визначається j₀)
-                    # C = J_0 - J_ST_CLASSIC(t=0)
+    
+                    # Перехідна складова
                     C = J_0 - E_0 * amp_factor * np.sin(-phase_shift)
                     J_TR_CLASSIC = C * np.exp(-T_ARRAY / tau)
-                    
+    
                     J_ARRAY = J_TR_CLASSIC + J_ST_CLASSIC
-                    
+    
                     formula_label = r'$j(t) = j_{\text{tr}}(t) + j_{\text{st}}(t)$'
-            
+                    
             else: # Закон Ома (стаціонарний)
                 # Закон Ома: j(t) = σ(T) * E(t). j₀ ігнорується.
                 if "Постійне" in field_type:

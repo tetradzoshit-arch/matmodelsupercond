@@ -3,25 +3,21 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 
-# --- ФІЗИЧНІ КОНСТАНТИ ---
+# --- ФІЗИЧНІ КОНСТАНТИ ДЛЯ НІОБІЮ ---
 E_CHARGE = 1.6e-19
 M_ELECTRON = 9.1e-31
-N_0 = 1.0e29              # Загальна концентрація
+N_0 = 5.0e28
 T_C = 9.2
-TAU_IMP = 5.0e-10         # Час релаксації на домішках
-A_PHONON = 3.0e8          # Коефіцієнт фононного розсіювання
+TAU_IMP = 5.0e-14
+A_PHONON = 3.0e8
 
 # --- ДОПОМІЖНІ ФУНКЦІЇ ---
 def tau_temperature_dependence(T):
-    """Правило Маттіссена: 1/τ(T) = 1/τ_imp + A·T^5"""
-    scattering_rate = (1.0 / TAU_IMP) + (A_PHONON * T**5)
+    if T <= 0.1:
+        return TAU_IMP
+    scattering_rate = (1 / TAU_IMP) + (A_PHONON * T**5)
     tau_T = 1.0 / scattering_rate
     return tau_T
-
-def calculate_superconducting_electrons(T):
-    """Концентрація надпровідних електронів: n_s = n_0 · (1 - (T/T_C)^4)"""
-    n_s = N_0 * (1.0 - (T / T_C)**4)
-    return n_s
 
 def find_peaks_simple(signal, prominence=0.1):
     peaks = []
@@ -205,7 +201,8 @@ with st.sidebar:
                 else:
                     tau = tau_T
                     omega_tau_sq = (OMEGA * tau)**2.0
-                    amp_factor = sigma * tau / np.sqrt(1.0 + omega_tau_sq)
+                    # ВИПРАВЛЕНА ФОРМУЛА - прибрано зайвий множник τ
+                    amp_factor = sigma / np.sqrt(1.0 + omega_tau_sq)
                     phase_shift = np.arctan(OMEGA * tau)
                     J_ST_CLASSIC = E_0 * amp_factor * np.sin(OMEGA * T_ARRAY - phase_shift)
                     C = J_0 - E_0 * amp_factor * np.sin(-phase_shift)
@@ -222,7 +219,8 @@ with st.sidebar:
                 else:
                     J_ARRAY = sigma * E_0 * np.sin(OMEGA * T_ARRAY)
                     formula_label = r'$j(t) = \sigma(T) E_0 \sin(\omega t)$'
-                     # 🔍 ДОДАЙ ДЕБАГ ТУТ - ПІСЛЯ ВСІХ РОЗРАХУНКІВ J_ARRAY
+        
+        # Дебаг
         st.write("🔍 **ДЕБАГ:**")
         tau_T_debug = tau_temperature_dependence(T)
         sigma_debug = (N_0 * E_CHARGE**2.0 * tau_T_debug) / M_ELECTRON
@@ -294,4 +292,3 @@ with st.expander("ℹ️ Інструкція"):
     - **Амплітуда E₀:** 1000-10000 В/м  
     - **Час моделювання:** 10-100 мкс
     """)
- 

@@ -8,13 +8,18 @@ from io import BytesIO
 import base64
 from scipy.signal import find_peaks
 
-# ФІЗИЧНІ КОНСТАНТИ ДЛЯ НІОБІЮ
-e = 1.6e-19  # Кл
-m = 9.1e-31  # кг
-Tc = 9.2  # К
-n0 = 1.0e29  # м⁻³
-tau_imp = 5.0e-14  # с
-A_ph = 3.0e8  # коефіцієнт фононного розсіювання
+# ФІЗИЧНІ КОНСТАНТИ ДЛЯ НІОБІЮ (ПЕРЕВІРЕНІ)
+e = 1.602e-19  # Кл (елементарний заряд)
+m = 9.109e-31  # кг (маса електрона)
+ħ = 1.054e-34  # Дж·с (постійна Дірака)
+kB = 1.3806e-23  # Дж/К (стала Больцмана)
+
+# Параметри ніобію
+Tc = 9.2  # К (критична температура)
+Δ0 = 1.76 * kB * Tc  # енергетична щілина при T=0
+n0 = 2.8e28  # м⁻³ (концентрація електронів) - БІЛЬШ РЕАЛІСТИЧНЕ ЗНАЧЕННЯ
+tau_imp = 1.0e-12  # с (час релаксації імпуріті) - БІЛЬШ РЕАЛІСТИЧНЕ ЗНАЧЕННЯ
+A_ph = 1.0e7  # коефіцієнт фононного розсіювання - ВИПРАВЛЕНО
 
 def calculate_superconducting_current(t, E_type, E0=1.0, a=1.0, omega=1.0, j0=0.0):
     """Розрахунок струму в надпровідному стані - рівняння Лондонів"""
@@ -29,17 +34,24 @@ def calculate_superconducting_current(t, E_type, E0=1.0, a=1.0, omega=1.0, j0=0.
 
 def calculate_normal_current(t, E_type, T, E0=1.0, a=1.0, omega=1.0, j0=0.0):
     """Розрахунок струму в звичайному стані - модель Друде"""
-    # ВИПРАВЛЕННЯ: використовуємо постійну концентрацію для звичайного металу
-    ns = n0  # Для звичайного металу концентрація не залежить від температури так сильно
-    tau = 1 / (1/tau_imp + A_ph * T**5)
+    # ВИПРАВЛЕННЯ: правильніша модель для нормального металу
+    ns = n0  # концентрація носіїв
+    
+    # Розрахунок часу релаксації з більш реалістичними параметрами
+    tau_ph = 1.0e-12 / (T + 1e-6)  # фононна релаксація
+    tau = 1 / (1/tau_imp + 1/tau_ph)
+    
+    # Провідність за Друде
     sigma = (ns * e**2 * tau) / m
     
     if E_type == "Статичне":
+        # j = j0*exp(-t/tau) + σE(1 - exp(-t/tau))
         return j0 * np.exp(-t/tau) + sigma * E0 * (1 - np.exp(-t/tau))
     elif E_type == "Лінійне":
-        return j0 * np.exp(-t/tau) + sigma * a * t * (1 - np.exp(-t/tau))
+        # j = j0*exp(-t/tau) + σa∫₀ᵗ t'exp(-(t-t')/τ)dt'
+        return j0 * np.exp(-t/tau) + sigma * a * (t * tau - tau**2 * (1 - np.exp(-t/tau)))
     elif E_type == "Синусоїдальне":
-        # ВИПРАВЛЕННЯ: правильна формула для синусоїдального поля
+        # j = j0*exp(-t/tau) + σE₀/(1+(ωτ)²) * [sin(ωt-φ) + (ωτ)exp(-t/τ)]
         phase_shift = np.arctan(omega * tau)
         amplitude = (sigma * E0) / np.sqrt(1 + (omega * tau)**2)
         transient = j0 * np.exp(-t/tau)
@@ -258,6 +270,7 @@ def main():
     st.set_page_config(page_title="Моделювання струму", layout="wide")
     st.title("🔬 Моделювання динаміки струму")
     
+    # Ініціалізація збережених графіків
     if 'saved_plots' not in st.session_state:
         st.session_state.saved_plots = []
     
@@ -266,28 +279,28 @@ def main():
         
         comparison_mode = st.radio(
             "Режим:",
-            ["Один стан", "Порівняння", "Кілька графіків"]
+            ["Один стан", "Порівняння", "Кілька графіків", "Збережені графіки"]
         )
         
         st.subheader("Загальні параметри")
         field_type = st.selectbox("Тип поля:", ["Статичне", "Лінійне", "Синусоїдальне"])
-        E0 = st.slider("Напруженість E₀ (В/м)", 0.1, 10.0, 1.0, 0.1)
-        j0 = st.slider("Початковий струм j₀ (А/м²)", 0.0, 10.0, 0.0, 0.1)
-        t_max = st.slider("Час моделювання (с)", 0.1, 10.0, 5.0, 0.1)
+        E0 = st.slider("Напруженість E₀ (В/м)", 0.1, 100.0, 1.0, 0.1)
+        j0 = st.slider("Початковий струм j₀ (А/м²)", 0.0, 100.0, 0.0, 0.1)
+        t_max = st.slider("Час моделювання (с)", 0.1, 20.0, 5.0, 0.1)
         
         if field_type == "Лінійне":
-            a = st.slider("Швидкість росту a", 0.1, 5.0, 1.0, 0.1)
+            a = st.slider("Швидкість росту a", 0.1, 10.0, 1.0, 0.1)
         else:
             a = 1.0
             
         if field_type == "Синусоїдальне":
-            omega = st.slider("Частота ω (рад/с)", 0.1, 10.0, 1.0, 0.1)
+            omega = st.slider("Частота ω (рад/с)", 0.1, 50.0, 5.0, 0.1)
         else:
             omega = 1.0
         
         st.subheader("Параметри станів")
         if comparison_mode == "Порівняння":
-            T_common = st.slider("Температура (K)", 0.1, 15.0, 4.2, 0.1)
+            T_common = st.slider("Температура (K)", 0.1, 300.0, 4.2, 0.1)
             current_temp = T_common
         elif comparison_mode == "Один стан":
             selected_state = st.radio("Стан:", ["Надпровідник", "Звичайний метал"])
@@ -295,104 +308,224 @@ def main():
                 T_super = st.slider("Температура надпровідника (K)", 0.1, Tc-0.1, 4.2, 0.1)
                 current_temp = T_super
             else:
-                T_normal = st.slider("Температура металу (K)", 0.1, 15.0, 4.2, 0.1)
+                # ВИПРАВЛЕННЯ: дозволяємо температуру до 300K для нормального металу
+                T_normal = st.slider("Температура металу (K)", 0.1, 300.0, 4.2, 0.1)
                 current_temp = T_normal
         else:
-            T_multi = st.slider("Температура (K)", 0.1, 15.0, 4.2, 0.1)
+            T_multi = st.slider("Температура (K)", 0.1, 300.0, 4.2, 0.1)
             current_temp = T_multi
+
+        # Кнопка збереження поточного графіка
+        if comparison_mode in ["Один стан", "Порівняння", "Кілька графіків"]:
+            if st.button("💾 Зберегти поточний графік", use_container_width=True):
+                plot_data = {
+                    't': np.linspace(0, t_max, 1000),
+                    'field_type': field_type,
+                    'E0': E0,
+                    'j0': j0,
+                    'a': a,
+                    'omega': omega,
+                    'temperature': current_temp,
+                    'mode': comparison_mode,
+                    'timestamp': pd.Timestamp.now()
+                }
+                
+                if comparison_mode == "Один стан":
+                    if selected_state == "Надпровідник":
+                        plot_data['j_super'] = calculate_superconducting_current(
+                            plot_data['t'], field_type, E0, a, omega, j0
+                        )
+                        plot_data['state'] = 'Надпровідник'
+                    else:
+                        plot_data['j_normal'] = calculate_normal_current(
+                            plot_data['t'], field_type, current_temp, E0, a, omega, j0
+                        )
+                        plot_data['state'] = 'Звичайний метал'
+                elif comparison_mode == "Порівняння":
+                    plot_data['j_super'] = calculate_superconducting_current(
+                        plot_data['t'], field_type, E0, a, omega, j0
+                    )
+                    plot_data['j_normal'] = calculate_normal_current(
+                        plot_data['t'], field_type, T_common, E0, a, omega, j0
+                    )
+                    plot_data['state'] = 'Порівняння'
+                else:  # Кілька графіків
+                    plot_data['j_super'] = calculate_superconducting_current(
+                        plot_data['t'], field_type, E0, a, omega, j0
+                    )
+                    plot_data['j_normal'] = calculate_normal_current(
+                        plot_data['t'], field_type, T_multi, E0, a, omega, j0
+                    )
+                    plot_data['state'] = 'Кілька графіків'
+                
+                st.session_state.saved_plots.append(plot_data)
+                st.success(f"Графік збережено! Всього збережено: {len(st.session_state.saved_plots)}")
+
+        # Кнопка очищення всіх збережених графіків
+        if st.session_state.saved_plots and st.button("🗑️ Очистити всі збережені графіки", use_container_width=True):
+            st.session_state.saved_plots = []
+            st.success("Всі збережені графіки видалено!")
 
     # Основний контент
     col1, col2 = st.columns([2, 1])
     
     with col1:
-        st.header("📈 Графіки струму")
-        
-        t = np.linspace(0, t_max, 1000)
-        fig = go.Figure()
-        
-        # ВИПРАВЛЕННЯ: таблиці будуються для всіх режимів
-        physical_analyses = []
-        math_analyses = []
-        
-        if comparison_mode == "Порівняння":
-            j_super = calculate_superconducting_current(t, field_type, E0, a, omega, j0)
-            j_normal = calculate_normal_current(t, field_type, T_common, E0, a, omega, j0)
+        if comparison_mode == "Збережені графіки":
+            st.header("📊 Збережені графіки")
             
-            fig.add_trace(go.Scatter(x=t, y=j_super, name='Надпровідник', 
-                                   line=dict(color='red', width=3)))
-            fig.add_trace(go.Scatter(x=t, y=j_normal, name='Звичайний метал',
-                                   line=dict(color='blue', width=3)))
-            
-            physical_analyses = [
-                analyze_physical_characteristics(t, j_super, "Надпровідник", field_type, T_common, omega),
-                analyze_physical_characteristics(t, j_normal, "Звичайний метал", field_type, T_common, omega)
-            ]
-            math_analyses = [
-                analyze_mathematical_characteristics(t, j_super, "Надпровідник", field_type),
-                analyze_mathematical_characteristics(t, j_normal, "Звичайний метал", field_type)
-            ]
-            
-        elif comparison_mode == "Один стан":
-            if selected_state == "Надпровідник":
-                j_super = calculate_superconducting_current(t, field_type, E0, a, omega, j0)
-                fig.add_trace(go.Scatter(x=t, y=j_super, name='Надпровідник',
-                                       line=dict(color='red', width=3)))
-                physical_analyses = [analyze_physical_characteristics(t, j_super, "Надпровідник", field_type, T_super, omega)]
-                math_analyses = [analyze_mathematical_characteristics(t, j_super, "Надпровідник", field_type)]
+            if not st.session_state.saved_plots:
+                st.info("Немає збережених графіків. Збережіть графіки в інших режимах.")
             else:
-                j_normal = calculate_normal_current(t, field_type, T_normal, E0, a, omega, j0)
-                fig.add_trace(go.Scatter(x=t, y=j_normal, name='Звичайний метал',
-                                       line=dict(color='blue', width=3)))
-                physical_analyses = [analyze_physical_characteristics(t, j_normal, "Звичайний метал", field_type, T_normal, omega)]
-                math_analyses = [analyze_mathematical_characteristics(t, j_normal, "Звичайний метал", field_type)]
+                fig_saved = go.Figure()
+                
+                for i, plot_data in enumerate(st.session_state.saved_plots):
+                    color_idx = i % 10  # Для різних кольорів
+                    
+                    if plot_data['state'] == 'Надпровідник':
+                        fig_saved.add_trace(go.Scatter(
+                            x=plot_data['t'], 
+                            y=plot_data['j_super'], 
+                            name=f"Надпровідник {i+1} (T={plot_data['temperature']}K)",
+                            line=dict(width=2),
+                            opacity=0.7
+                        ))
+                    elif plot_data['state'] == 'Звичайний метал':
+                        fig_saved.add_trace(go.Scatter(
+                            x=plot_data['t'], 
+                            y=plot_data['j_normal'], 
+                            name=f"Метал {i+1} (T={plot_data['temperature']}K)",
+                            line=dict(width=2),
+                            opacity=0.7
+                        ))
+                    elif plot_data['state'] in ['Порівняння', 'Кілька графіків']:
+                        fig_saved.add_trace(go.Scatter(
+                            x=plot_data['t'], 
+                            y=plot_data['j_super'], 
+                            name=f"Надпровідник {i+1}",
+                            line=dict(width=2),
+                            opacity=0.7
+                        ))
+                        fig_saved.add_trace(go.Scatter(
+                            x=plot_data['t'], 
+                            y=plot_data['j_normal'], 
+                            name=f"Метал {i+1}",
+                            line=dict(width=2),
+                            opacity=0.7
+                        ))
+                
+                fig_saved.update_layout(
+                    title="Усі збережені графіки",
+                    xaxis_title="Час (с)",
+                    yaxis_title="Густина струму (А/м²)",
+                    height=600,
+                    showlegend=True
+                )
+                
+                st.plotly_chart(fig_saved, use_container_width=True)
+                
+                # Інформація про збережені графіки
+                st.subheader("Інформація про збережені графіки")
+                for i, plot_data in enumerate(st.session_state.saved_plots):
+                    with st.expander(f"Графік {i+1} - {plot_data['state']}"):
+                        st.write(f"Тип поля: {plot_data['field_type']}")
+                        st.write(f"E₀: {plot_data['E0']} В/м")
+                        st.write(f"j₀: {plot_data['j0']} А/м²")
+                        st.write(f"Температура: {plot_data['temperature']} K")
+                        st.write(f"Час: {plot_data['t_max']} с")
+                        st.write(f"Збережено: {plot_data['timestamp']}")
+                        
+                        if st.button(f"Видалити графік {i+1}", key=f"delete_{i}"):
+                            st.session_state.saved_plots.pop(i)
+                            st.rerun()
         
         else:
-            j_super = calculate_superconducting_current(t, field_type, E0, a, omega, j0)
-            j_normal = calculate_normal_current(t, field_type, T_multi, E0, a, omega, j0)
+            st.header("📈 Графіки струму")
             
-            fig.add_trace(go.Scatter(x=t, y=j_super, name='Надпровідник',
-                                   line=dict(color='red', width=3)))
-            fig.add_trace(go.Scatter(x=t, y=j_normal, name='Звичайний метал',
-                                   line=dict(color='blue', width=3)))
+            t = np.linspace(0, t_max, 1000)
+            fig = go.Figure()
             
-            physical_analyses = [
-                analyze_physical_characteristics(t, j_super, "Надпровідник", field_type, T_multi, omega),
-                analyze_physical_characteristics(t, j_normal, "Звичайний метал", field_type, T_multi, omega)
-            ]
-            math_analyses = [
-                analyze_mathematical_characteristics(t, j_super, "Надпровідник", field_type),
-                analyze_mathematical_characteristics(t, j_normal, "Звичайний метал", field_type)
-            ]
-        
-        fig.update_layout(
-            title="Динаміка густини струму",
-            xaxis_title="Час (с)",
-            yaxis_title="Густина струму (А/м²)",
-            height=500
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # ВИПРАВЛЕННЯ: таблиці показуються завжди, коли є дані
-        if physical_analyses:
-            st.header("📊 Фізичний аналіз")
-            physical_df = pd.DataFrame(physical_analyses)
-            st.dataframe(physical_df, use_container_width=True, height=200)
+            physical_analyses = []
+            math_analyses = []
             
-            st.header("🧮 Математичний аналіз")
-            if len(math_analyses) == 2:
-                col_math1, col_math2 = st.columns(2)
-                with col_math1:
-                    st.write("**Надпровідник:**")
-                    math_df_super = pd.DataFrame([math_analyses[0]])
-                    st.dataframe(math_df_super.T.rename(columns={0: 'Значення'}), use_container_width=True, height=300)
-                with col_math2:
-                    st.write("**Звичайний метал:**")
-                    math_df_normal = pd.DataFrame([math_analyses[1]])
-                    st.dataframe(math_df_normal.T.rename(columns={0: 'Значення'}), use_container_width=True, height=300)
-            else:
-                math_df = pd.DataFrame([math_analyses[0]])
-                st.dataframe(math_df.T.rename(columns={0: 'Значення'}), use_container_width=True, height=300)
+            if comparison_mode == "Порівняння":
+                j_super = calculate_superconducting_current(t, field_type, E0, a, omega, j0)
+                j_normal = calculate_normal_current(t, field_type, T_common, E0, a, omega, j0)
+                
+                fig.add_trace(go.Scatter(x=t, y=j_super, name='Надпровідник', 
+                                       line=dict(color='red', width=3)))
+                fig.add_trace(go.Scatter(x=t, y=j_normal, name='Звичайний метал',
+                                       line=dict(color='blue', width=3)))
+                
+                physical_analyses = [
+                    analyze_physical_characteristics(t, j_super, "Надпровідник", field_type, T_common, omega),
+                    analyze_physical_characteristics(t, j_normal, "Звичайний метал", field_type, T_common, omega)
+                ]
+                math_analyses = [
+                    analyze_mathematical_characteristics(t, j_super, "Надпровідник", field_type),
+                    analyze_mathematical_characteristics(t, j_normal, "Звичайний метал", field_type)
+                ]
+                
+            elif comparison_mode == "Один стан":
+                if selected_state == "Надпровідник":
+                    j_super = calculate_superconducting_current(t, field_type, E0, a, omega, j0)
+                    fig.add_trace(go.Scatter(x=t, y=j_super, name='Надпровідник',
+                                           line=dict(color='red', width=3)))
+                    physical_analyses = [analyze_physical_characteristics(t, j_super, "Надпровідник", field_type, T_super, omega)]
+                    math_analyses = [analyze_mathematical_characteristics(t, j_super, "Надпровідник", field_type)]
+                else:
+                    j_normal = calculate_normal_current(t, field_type, T_normal, E0, a, omega, j0)
+                    fig.add_trace(go.Scatter(x=t, y=j_normal, name='Звичайний метал',
+                                           line=dict(color='blue', width=3)))
+                    physical_analyses = [analyze_physical_characteristics(t, j_normal, "Звичайний метал", field_type, T_normal, omega)]
+                    math_analyses = [analyze_mathematical_characteristics(t, j_normal, "Звичайний метал", field_type)]
+            
+            else:  # Кілька графіків
+                j_super = calculate_superconducting_current(t, field_type, E0, a, omega, j0)
+                j_normal = calculate_normal_current(t, field_type, T_multi, E0, a, omega, j0)
+                
+                fig.add_trace(go.Scatter(x=t, y=j_super, name='Надпровідник',
+                                       line=dict(color='red', width=3)))
+                fig.add_trace(go.Scatter(x=t, y=j_normal, name='Звичайний метал',
+                                       line=dict(color='blue', width=3)))
+                
+                physical_analyses = [
+                    analyze_physical_characteristics(t, j_super, "Надпровідник", field_type, T_multi, omega),
+                    analyze_physical_characteristics(t, j_normal, "Звичайний метал", field_type, T_multi, omega)
+                ]
+                math_analyses = [
+                    analyze_mathematical_characteristics(t, j_super, "Надпровідник", field_type),
+                    analyze_mathematical_characteristics(t, j_normal, "Звичайний метал", field_type)
+                ]
+            
+            fig.update_layout(
+                title="Динаміка густини струму",
+                xaxis_title="Час (с)",
+                yaxis_title="Густина струму (А/м²)",
+                height=500
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # Аналітичні таблиці
+            if physical_analyses:
+                st.header("📊 Фізичний аналіз")
+                physical_df = pd.DataFrame(physical_analyses)
+                st.dataframe(physical_df, use_container_width=True, height=200)
+                
+                st.header("🧮 Математичний аналіз")
+                if len(math_analyses) == 2:
+                    col_math1, col_math2 = st.columns(2)
+                    with col_math1:
+                        st.write("**Надпровідник:**")
+                        math_df_super = pd.DataFrame([math_analyses[0]])
+                        st.dataframe(math_df_super.T.rename(columns={0: 'Значення'}), use_container_width=True, height=300)
+                    with col_math2:
+                        st.write("**Звичайний метал:**")
+                        math_df_normal = pd.DataFrame([math_analyses[1]])
+                        st.dataframe(math_df_normal.T.rename(columns={0: 'Значення'}), use_container_width=True, height=300)
+                else:
+                    math_df = pd.DataFrame([math_analyses[0]])
+                    st.dataframe(math_df.T.rename(columns={0: 'Значення'}), use_container_width=True, height=300)
 
     with col2:
         st.header("📋 Інформація")
@@ -407,6 +540,14 @@ def main():
             st.success("✅ Температура нижче Tкрит")
         else:
             st.warning("⚠️ Температура вище Tкрит")
+
+        # Інформація про фізичні константи
+        with st.expander("Фізичні константи"):
+            st.write(f"**e =** {e:.3e} Кл")
+            st.write(f"**m =** {m:.3e} кг")
+            st.write(f"**n₀ =** {n0:.2e} м⁻³")
+            st.write(f"**τ_imp =** {tau_imp:.2e} с")
+            st.write(f"**T_c =** {Tc} K")
 
         st.header("📄 Експорт результатів")
         if st.button("📥 Згенерувати звіт", use_container_width=True) and physical_analyses:

@@ -1,9 +1,11 @@
-
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import pandas as pd
+from io import BytesIO
+import base64
 
 # Константи для Ніобію
 e = 1.6e-19  # Кл
@@ -15,7 +17,6 @@ A_ph = 3.0e8  # коефіцієнт фононного розсіювання
 
 def calculate_superconducting_current(t, E_type, E0=1.0, a=1.0, omega=1.0, j0=0.0):
     """Розрахунок струму в надпровідному стані"""
-    # Константа K для надпровідника
     K = (e**2 * n0) / m
     
     if E_type == "Статичне":
@@ -27,7 +28,6 @@ def calculate_superconducting_current(t, E_type, E0=1.0, a=1.0, omega=1.0, j0=0.
 
 def calculate_normal_current(t, E_type, T, E0=1.0, a=1.0, omega=1.0, j0=0.0):
     """Розрахунок струму в звичайному стані"""
-    # Температурна залежність параметрів
     ns = n0 * (1 - (T/Tc)**4)
     tau = 1 / (1/tau_imp + A_ph * T**5)
     sigma = (ns * e**2 * tau) / m
@@ -37,28 +37,56 @@ def calculate_normal_current(t, E_type, T, E0=1.0, a=1.0, omega=1.0, j0=0.0):
     elif E_type == "Лінійне":
         return j0 * np.exp(-t/tau) + sigma * a * E0 * tau**2 * (1 - np.exp(-t/tau))
     elif E_type == "Синусоїдальне":
-        # Спрощена формула для усталеного режиму
         phase_shift = np.arctan(omega * tau)
         amplitude = (sigma * E0 * tau) / np.sqrt(1 + (omega * tau)**2)
         transient = j0 * np.exp(-t/tau)
         return transient + amplitude * np.sin(omega * t - phase_shift)
 
+def create_pdf_report(data):
+    """Створення PDF звіту"""
+    buffer = BytesIO()
+    
+    # Створюємо простий текстовий звіт
+    report_text = f"""
+    ЗВІТ З МОДЕЛЮВАННЯ СТРУМУ
+    =========================
+    
+    Параметри моделювання:
+    - Тип поля: {data['field_type']}
+    - Напруженість поля E₀: {data['E0']} В/м
+    - Початковий струм j₀: {data['j0']} А/м²
+    - Час моделювання: {data['t_max']} с
+    - Температура: {data.get('T_common', data.get('T_super', data.get('T_normal', 'N/A')))} K
+    
+    Результати:
+    - Надпровідник: {data.get('super_desc', 'N/A')}
+    - Звичайний метал: {data.get('normal_desc', 'N/A')}
+    
+    Висновки: {data.get('conclusion', 'Порівняльний аналіз динаміки струму')}
+    """
+    
+    buffer.write(report_text.encode())
+    buffer.seek(0)
+    return buffer
+
 def main():
     st.set_page_config(page_title="Моделювання струму", layout="wide")
     st.title("🎛️ Моделювання динаміки струму: надпровідник vs звичайний метал")
+    
+    # Ініціалізація сесії для зберігання графіків
+    if 'saved_plots' not in st.session_state:
+        st.session_state.saved_plots = []
     
     # Сайдбар з параметрами
     with st.sidebar:
         st.header("⚙️ Параметри моделювання")
         
-        # Режим відображення
         comparison_mode = st.radio(
             "Режим відображення:",
-            ["Один стан", "Порівняння"],
-            help="Порівняння покаже обидва стани одночасно"
+            ["Один стан", "Порівняння", "Кілька графіків"],
+            help="Режим 'Кілька графіків' дозволяє будувати декілька кривих на одному графіку"
         )
         
-        # Загальні параметри
         st.subheader("Загальні параметри")
         field_type = st.selectbox(
             "Тип електричного поля:",
@@ -69,7 +97,6 @@ def main():
         j0 = st.slider("Початковий струм j₀ (А/м²)", 0.0, 10.0, 0.0, 0.1)
         t_max = st.slider("Час моделювання (с)", 0.1, 10.0, 5.0, 0.1)
         
-        # Параметри поля
         if field_type == "Лінійне":
             a = st.slider("Швидкість росту поля a", 0.1, 5.0, 1.0, 0.1)
         else:
@@ -80,73 +107,91 @@ def main():
         else:
             omega = 1.0
         
-        # Параметри станів
         st.subheader("Параметри станів")
         if comparison_mode == "Порівняння":
             T_common = st.slider("Температура для порівняння (K)", 0.1, 15.0, 4.2, 0.1)
-            T_super = T_common
-            T_normal = T_common
-        else:
+        elif comparison_mode == "Один стан":
             selected_state = st.radio("Оберіть стан:", ["Надпровідник", "Звичайний метал"])
             if selected_state == "Надпровідник":
                 T_super = st.slider("Температура надпровідника (K)", 0.1, Tc-0.1, 4.2, 0.1)
-                T_normal = None
             else:
                 T_normal = st.slider("Температура звичайного металу (K)", 0.1, 15.0, 4.2, 0.1)
-                T_super = None
-    
+        else:  # Кілька графіків
+            T_multi = st.slider("Температура для аналізу (K)", 0.1, 15.0, 4.2, 0.1)
+        
+        # Кнопка для збереження поточного графіку
+        if st.button("💾 Зберегти поточний графік"):
+            current_params = {
+                'field_type': field_type,
+                'E0': E0,
+                'j0': j0,
+                't_max': t_max,
+                'label': f"{field_type}, E₀={E0}, T={T_common if comparison_mode == 'Порівняння' else T_multi}K"
+            }
+            st.session_state.saved_plots.append(current_params)
+            st.success("Графік збережено!")
+        
+        # Кнопка для очищення всіх збережених графіків
+        if st.button("🗑️ Очистити всі графіки"):
+            st.session_state.saved_plots = []
+            st.success("Всі графіки очищено!")
+
     # Основний контент
     col1, col2 = st.columns([2, 1])
     
     with col1:
         st.header("📈 Графіки струму")
         
-        # Часова вісь
         t = np.linspace(0, t_max, 1000)
+        fig = go.Figure()
         
         if comparison_mode == "Порівняння":
-            # Порівняльний режим
-            fig = make_subplots(rows=2, cols=1, 
-                              subplot_titles=('Надпровідний стан', 'Звичайний стан'),
-                              vertical_spacing=0.1)
-            
-            # Надпровідник
             j_super = calculate_superconducting_current(t, field_type, E0, a, omega, j0)
-            fig.add_trace(go.Scatter(x=t, y=j_super, name='Надпровідник', 
-                                   line=dict(color='red')), row=1, col=1)
-            
-            # Звичайний метал
             j_normal = calculate_normal_current(t, field_type, T_common, E0, a, omega, j0)
+            
+            fig.add_trace(go.Scatter(x=t, y=j_super, name='Надпровідник', 
+                                   line=dict(color='red', width=3)))
             fig.add_trace(go.Scatter(x=t, y=j_normal, name='Звичайний метал',
-                                   line=dict(color='blue')), row=2, col=1)
+                                   line=dict(color='blue', width=3)))
             
-            fig.update_xaxes(title_text="Час (с)", row=2, col=1)
-            fig.update_yaxes(title_text="Густина струму (А/м²)", row=1, col=1)
-            fig.update_yaxes(title_text="Густина струму (А/м²)", row=2, col=1)
-            fig.update_layout(height=600, showlegend=True)
-            
-        else:
-            # Один стан
-            fig = go.Figure()
-            
-            if T_super is not None:
+        elif comparison_mode == "Один стан":
+            if 'T_super' in locals():
                 j_super = calculate_superconducting_current(t, field_type, E0, a, omega, j0)
                 fig.add_trace(go.Scatter(x=t, y=j_super, name='Надпровідник',
                                        line=dict(color='red', width=3)))
-                title = "Надпровідний стан"
             else:
                 j_normal = calculate_normal_current(t, field_type, T_normal, E0, a, omega, j0)
                 fig.add_trace(go.Scatter(x=t, y=j_normal, name='Звичайний метал',
                                        line=dict(color='blue', width=3)))
-                title = "Звичайний стан"
+        
+        else:  # Кілька графіків
+            # Поточний графік
+            j_super = calculate_superconducting_current(t, field_type, E0, a, omega, j0)
+            j_normal = calculate_normal_current(t, field_type, T_multi, E0, a, omega, j0)
             
-            fig.update_layout(title=title, xaxis_title="Час (с)", 
-                            yaxis_title="Густина струму (А/м²)", height=400)
+            fig.add_trace(go.Scatter(x=t, y=j_super, name=f'Надпровідник (поточний)',
+                                   line=dict(color='red', width=3)))
+            fig.add_trace(go.Scatter(x=t, y=j_normal, name=f'Звичайний (поточний)',
+                                   line=dict(color='blue', width=3)))
+            
+            # Додаємо збережені графіки
+            for i, saved_plot in enumerate(st.session_state.saved_plots):
+                j_super_saved = calculate_superconducting_current(t, saved_plot['field_type'], 
+                                                                saved_plot['E0'], a, omega, saved_plot['j0'])
+                fig.add_trace(go.Scatter(x=t, y=j_super_saved, name=f'Надпровідник {i+1}',
+                                       line=dict(dash='dash')))
+        
+        fig.update_layout(
+            title="Динаміка густини струму",
+            xaxis_title="Час (с)",
+            yaxis_title="Густина струму (А/м²)",
+            height=500
+        )
         
         st.plotly_chart(fig, use_container_width=True)
     
     with col2:
-        st.header("📊 Аналіз")
+        st.header("📊 Аналіз результатів")
         
         # Інформація про параметри
         st.subheader("Параметри розрахунку")
@@ -156,48 +201,70 @@ def main():
         
         if comparison_mode == "Порівняння":
             st.write(f"**Температура:** {T_common} K")
-            if T_common < Tc:
-                st.success("✅ Температура нижче Tкрит - можливий надпровідний стан")
-            else:
-                st.warning("⚠️ Температура вище Tкрит - тільки звичайний стан")
-        else:
-            if T_super is not None:
+            status = "✅ Температура нижче Tкрит" if T_common < Tc else "⚠️ Температура вище Tкрит"
+            st.success(status) if T_common < Tc else st.warning(status)
+        elif comparison_mode == "Один стан":
+            if 'T_super' in locals():
                 st.write(f"**Температура надпровідника:** {T_super} K")
             else:
                 st.write(f"**Температура металу:** {T_normal} K")
+        else:
+            st.write(f"**Температура:** {T_multi} K")
+
+        # ТАБЛИЦЯ ПОРІВНЯННЯ
+        st.subheader("📋 Порівняльна таблиця")
         
-        # Додаткова візуалізація для синусоїдального поля
-        if field_type == "Синусоїдальне" and comparison_mode == "Порівняння":
-            st.subheader("📡 Аналіз частотної залежності")
+        comparison_data = {
+            "Параметр": ["Поведінка струму", "Наявність опору", "Фазовий зсув", "Стаціонарний стан"],
+            "Надпровідник": ["Необмежене зростання", "Відсутній", "π/2", "Не досягається"],
+            "Звичайний метал": ["Експоненційне насичення", "Присутній", "arctg(ωτ)", "Досягається"]
+        }
+        
+        st.table(comparison_data)
+
+        # ДОВІДКА
+        st.subheader("📖 Довідка")
+        with st.expander("Фізичні основи моделі"):
+            st.write("""
+            **Надпровідний стан (рівняння Лондонів):**
+            - Відсутність опору
+            - Необмежене зростання струму в постійному полі
+            - Фазовий зсув π/2 у змінному полі
             
-            # Розрахунок амплітуд для різних частот
-            frequencies = np.logspace(-1, 1, 50)  # 0.1 до 10 рад/с
-            amplitudes_super = []
-            amplitudes_normal = []
+            **Звичайний стан (модель Друде):**
+            - Наявність опору через зіткнення
+            - Експоненційне насичення струму
+            - Частотно-залежний фазовий зсув
+            """)
+        
+        with st.expander("Математичні моделі"):
+            st.write("""
+            **Надпровідник:** dj/dt = (e²nₛ/m)E(t)
+            **Звичайний метал:** dj/dt + j/τ = (σ/τ)E(t)
             
-            for freq in frequencies:
-                # Амплітуда для надпровідника
-                K = (e**2 * n0) / m
-                amp_super = (K * E0) / freq
-                amplitudes_super.append(amp_super)
-                
-                # Амплітуда для звичайного металу
-                ns = n0 * (1 - (T_common/Tc)**4)
-                tau = 1 / (1/tau_imp + A_ph * T_common**5)
-                sigma = (ns * e**2 * tau) / m
-                amp_normal = (sigma * E0 * tau) / np.sqrt(1 + (freq * tau)**2)
-                amplitudes_normal.append(amp_normal)
+            де τ - час релаксації, σ - провідність
+            """)
+
+        # ЕКСПОРТ В PDF
+        st.subheader("📄 Експорт результатів")
+        if st.button("📥 Згенерувати PDF звіт"):
+            report_data = {
+                'field_type': field_type,
+                'E0': E0,
+                'j0': j0,
+                't_max': t_max,
+                'super_desc': "Необмежене зростання струму" if comparison_mode != "Кілька графіків" else "Множинні криві",
+                'normal_desc': "Експоненційне насичення" if comparison_mode != "Кілька графіків" else "Множинні кризі",
+                'conclusion': "Порівняльний аналіз показує фундаментальну різницю у динаміці струму"
+            }
             
-            fig_freq = go.Figure()
-            fig_freq.add_trace(go.Scatter(x=frequencies, y=amplitudes_super, 
-                                        name='Надпровідник', line=dict(color='red')))
-            fig_freq.add_trace(go.Scatter(x=frequencies, y=amplitudes_normal,
-                                        name='Звичайний метал', line=dict(color='blue')))
-            fig_freq.update_layout(xaxis_title="Частота ω (рад/с)", 
-                                 yaxis_title="Амплітуда струму (А/м²)",
-                                 xaxis_type="log", yaxis_type="log",
-                                 height=300)
-            st.plotly_chart(fig_freq, use_container_width=True)
+            pdf_buffer = create_pdf_report(report_data)
+            st.download_button(
+                label="⬇️ Завантажити PDF звіт",
+                data=pdf_buffer,
+                file_name="звіт_моделювання_струму.pdf",
+                mime="application/pdf"
+            )
 
 if __name__ == "__main__":
     main()

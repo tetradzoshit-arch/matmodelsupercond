@@ -17,25 +17,27 @@ def find_peaks_simple(signal, prominence=0.1):
             if signal[i] > threshold:
                 peaks.append(i)
     
-    return np.array(peaks)
-
-# --- ФІЗИЧНІ КОНСТАНТИ ---
+# --- ФІЗИЧНІ КОНСТАНТИ ДЛЯ НІОБІЮ ---
 E_CHARGE = 1.6e-19
 M_ELECTRON = 9.1e-31
-N_0 = 8.5e28             
-T_C = 9.2
-TAU_IMP = 1.0e-14        
-A_PHONON = 1.0e9
+N_0 = 5.0e28              # Концентрація для Nb: ~5×10²⁸ м⁻³
+T_C = 9.2                 # Критична температура Nb
+
+# Час релаксації для Nb при низьких температурах:
+TAU_IMP = 5.0e-13         # Для чистого Nb при T < 10K
+A_PHONON = 1.0e7          # Коефіцієнт для фононного розсіювання
 
 # --- ДОПОМІЖНІ ФУНКЦІЇ ---
 def tau_temperature_dependence(T):
-    """Розраховує час релаксації tau(T) для звичайного металу"""
-    if T <= 0.1:
-        return TAU_IMP
-        
-    scattering_rate = (1 / TAU_IMP) + (A_PHONON * T**5)
-    tau_T = 1.0 / scattering_rate
-    return tau_T
+    """Реальна залежність часу релаксації для ніобію"""
+    if T <= 4.2:  # Для гелієвих температур
+        return 5.0e-13  # Чистий Nb при 4.2K
+    elif T <= 10:
+        return 3.0e-13  # Трохи менше при 10K
+    else:
+        # При більш високих температурах
+        scattering_rate = (1 / 5.0e-13) + (1.0e7 * T**5)
+        return 1.0 / scattering_rate
 
 def analyze_current_direct(t_array, j_array, field_type, model_name, is_superconductor):
     """Прямий аналіз кривої струму без лінійної регресії"""

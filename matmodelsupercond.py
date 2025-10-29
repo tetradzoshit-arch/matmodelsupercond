@@ -305,11 +305,3 @@ else:
         expected_amplitude = sigma * E_0
         st.write(f"Очікувана амплітуда = {expected_amplitude:.2e} А/м²")
 
-st.write(f"Фактичний макс. струм = {np.max(J_ARRAY):.2e} А/м²")
-st.write("🔍 **ДЕБАГ:**")
-tau_T_debug = tau_temperature_dependence(T)
-sigma_debug = (N_0 * E_CHARGE**2.0 * tau_T_debug) / M_ELECTRON
-st.write(f"tau_T = {tau_T_debug:.2e} с")
-st.write(f"sigma = {sigma_debug:.2e} См/м")
-st.write(f"Очікуваний струм = {sigma_debug * E_0:.2e} А/м²")
-st.write(f"Фактичний струм = {np.max(J_ARRAY):.2e} А/м²")

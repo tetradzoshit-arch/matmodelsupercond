@@ -140,10 +140,8 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
         import io
         
         buffer = io.BytesIO()
-        # АЛЬБОМНА ОРІЄНТАЦІЯ
         pdf = canvas.Canvas(buffer, pagesize=landscape(A4))
         
-        # Встановлюємо шрифт, що підтримує кирилицю
         try:
             pdfmetrics.registerFont(TTFont('DejaVuSans', 'DejaVuSans.ttf'))
             font_name = 'DejaVuSans'
@@ -154,14 +152,13 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
             except:
                 font_name = 'Helvetica'
         
-        # Нормальний шрифт - тепер є місце
         pdf.setFont(font_name, 16)
-        pdf.drawString(100, 520, "ЗВІТ З МОДЕЛЮВАННЯ СТРУМУ В НІОБІЇ")  # Y змінено для альбомної
+        pdf.drawString(100, 520, "ЗВІТ З МОДЕЛЮВАННЯ СТРУМУ В НІОБІЇ")
         
         pdf.setFont(font_name, 12)
-        y_position = 490  # Початкова позиція для альбомної
+        y_position = 490
         
-        # Параметри моделювання - повні назви
+        # Параметри моделювання
         pdf.drawString(100, y_position, "Параметри моделювання:")
         y_position -= 20
         pdf.drawString(120, y_position, f"- Тип поля: {input_data['field_type']}")
@@ -175,16 +172,14 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
         pdf.drawString(120, y_position, f"- Температура: {input_data['T_common']} K")
         y_position -= 30
 
-        # Фізичний аналіз - ПОВНА ТАБЛИЦЯ
+        # Фізичний аналіз
         if physical_analyses:
             pdf.drawString(100, y_position, "Фізичний аналіз:")
             y_position -= 25
             
-            # Широкі колонки - є місце
             col_widths = [120, 80, 100, 100, 180]
             row_height = 20
             
-            # Заголовок таблиці
             pdf.setFillColorRGB(0.8, 0.8, 1.0)
             pdf.rect(100, y_position - row_height, sum(col_widths), row_height, fill=1)
             pdf.setFillColorRGB(0, 0, 0)
@@ -197,7 +192,6 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
             
             y_position -= row_height
             
-            # Дані таблиці - повні тексти
             for i, analysis in enumerate(physical_analyses):
                 if i % 2 == 0:
                     pdf.setFillColorRGB(0.95, 0.95, 0.95)
@@ -213,7 +207,7 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
                     analysis.get('Температура', ''),
                     analysis.get('j(0)', ''),
                     analysis.get('j_max', ''),
-                    analysis.get('Поведінка', '')  # Без обрізання
+                    analysis.get('Поведінка', '')
                 ]
                 
                 for j, cell in enumerate(cells):
@@ -225,7 +219,6 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
                     pdf.showPage()
                     pdf.setFont(font_name, 12)
                     y_position = 490
-                    # Перемальовуємо заголовки на новій сторінці
                     pdf.setFillColorRGB(0.8, 0.8, 1.0)
                     pdf.rect(100, y_position - row_height, sum(col_widths), row_height, fill=1)
                     pdf.setFillColorRGB(0, 0, 0)
@@ -237,12 +230,11 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
             
             y_position -= 25
 
-        # Математичний аналіз - ПОВНА ТАБЛИЦЯ
+        # Математичний аналіз - ВИПРАВЛЕНО ДЛЯ ПОХІДНИХ
         if math_analyses:
             pdf.drawString(100, y_position, "Математичний аналіз:")
             y_position -= 25
             
-            # Широкі колонки
             col_widths = [100, 100, 80, 80, 80, 80, 80]
             row_height = 20
             
@@ -258,7 +250,6 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
             
             y_position -= row_height
             
-            # Дані таблиці - повні тексти
             for i, analysis in enumerate(math_analyses):
                 if i % 2 == 0:
                     pdf.setFillColorRGB(0.95, 1.0, 0.95)
@@ -269,15 +260,24 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
                 pdf.setFillColorRGB(0, 0, 0)
                 
                 x_pos = 100
+                
+                # ВИПРАВЛЕННЯ: правильні ключі для похідних
                 cells = [
                     analysis.get('Функція', ''),
                     analysis.get('Тип функції', ''),
                     analysis.get('f(0)', ''),
                     analysis.get('max f(t)', ''),
-                    analysis.get("f'(max)", ''),
-                    analysis.get("f'(min)", ''),
-                    analysis.get("f'(сер)", '')
+                    analysis.get("f'(max)", 'N/A'),  # Максимальна похідна
+                    analysis.get("f'(min)", 'N/A'),  # Мінімальна похідна
+                    analysis.get("f'(сер)", 'N/A')   # Середня похідна - ТЕПЕР ПРАВИЛЬНИЙ КЛЮЧ
                 ]
+                
+                # Додаткова перевірка - якщо немає середньої похідної, шукаємо альтернативні ключі
+                if "f'(сер)" not in analysis:
+                    if "f'(середнє)" in analysis:
+                        cells[6] = analysis["f'(середнє)"]
+                    elif "f'(сер)" in analysis:
+                        cells[6] = analysis["f'(сер)"]
                 
                 for j, cell in enumerate(cells):
                     pdf.drawString(x_pos + 3, y_position - 15, cell)
@@ -288,7 +288,6 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
                     pdf.showPage()
                     pdf.setFont(font_name, 12)
                     y_position = 490
-                    # Перемальовуємо заголовки
                     pdf.setFillColorRGB(0.8, 1.0, 0.8)
                     pdf.rect(100, y_position - row_height, sum(col_widths), row_height, fill=1)
                     pdf.setFillColorRGB(0, 0, 0)
@@ -300,30 +299,23 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
             
             y_position -= 25
         
-        # РОЗГОРНУТІ ВИСНОВКИ
+        # Висновки
         pdf.drawString(100, y_position, "Висновки та аналіз результатів:")
         y_position -= 25
         
         conclusions = [
-            "• Надпровідник демонструє принципово іншу динаміку струму порівняно з звичайним металом:",
-            "  - У надпровідному стані струм необмежено зростає з часом",
-            "  - Відсутній опір дозволяє струму вільно прискорюватися",
+            "• Надпровідник демонструє принципово іншу динаміку струму:",
+            "  - Струм необмежено зростає з часом через відсутність опору",
             "  - Ефект Мейснера виключає втрати енергії",
             "",
             "• Звичайний метал має властивості насичення:",
-            "  - Струм досягає стаціонарного значення через опір",
-            "  - Час релаксації впливає на швидкість встановлення струму", 
-            "  - При високих температурах опір зростає",
+            "  - Струм досягає стаціонарного значення через опір", 
+            "  - Час релаксації впливає на швидкість встановлення струму",
             "",
-            "• Синусоїдальне поле виявляє фазові зсуви:",
-            "  - У надпровіднику струм випереджає поле на π/2",
-            "  - У звичайному металі фазовий зсув залежить від частоти",
-            "  - Амплітуда коливань залежить від провідності матеріалу",
-            "",
-            "• Математичний аналіз похідних показує:",
-            "  - Максимальна швидкість зміни струму у надпровіднику",
-            "  - Експоненційне спадання похідної у звичайному стані",
-            "  - Середня швидкість відображає інтенсивність процесів"
+            "• Аналіз похідних показує швидкість змін:",
+            "  - f'(max) - максимальна швидкість зростання струму",
+            "  - f'(min) - максимальна швидкість спадання струму",
+            "  - f'(сер) - середня швидкість зміни струму за весь час"
         ]
         
         for conclusion in conclusions:
@@ -343,7 +335,6 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
         return buffer
         
     except Exception as e:
-        # Резервний варіант
         buffer = BytesIO()
         report_text = "ЗВІТ З МОДЕЛЮВАННЯ СТРУМУ В НІОБІЇ\n\n"
         report_text += "Параметри моделювання:\n"
@@ -352,71 +343,6 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
         buffer.write(report_text.encode('utf-8'))
         buffer.seek(0)
         return buffer
-        
-    except Exception as e:
-        # Резервний варіант
-        buffer = BytesIO()
-        report_text = "ЗВІТ З МОДЕЛЮВАННЯ СТРУМУ\n\n"
-        report_text += "Параметри моделювання:\n"
-        for key, value in input_data.items():
-            report_text += f"{key}: {value}\n"
-        buffer.write(report_text.encode('utf-8'))
-        buffer.seek(0)
-        return buffer
-        
-    except Exception as e:
-        # Резервний варіант
-        buffer = BytesIO()
-        report_text = "ЗВІТ З МОДЕЛЮВАННЯ СТРУМУ\n\n"
-        report_text += "Параметри моделювання:\n"
-        for key, value in input_data.items():
-            report_text += f"{key}: {value}\n"
-        buffer.write(report_text.encode('utf-8'))
-        buffer.seek(0)
-        return buffer
-        
-    except Exception as e:
-        # Резервний варіант - текстовий файл
-        buffer = BytesIO()
-        report_text = "ЗВІТ З МОДЕЛЮВАННЯ СТРУМУ\n\n"
-        report_text += "Параметри моделювання:\n"
-        for key, value in input_data.items():
-            report_text += f"{key}: {value}\n"
-        buffer.write(report_text.encode('utf-8'))
-        buffer.seek(0)
-        return buffer
-        
-    except Exception as e:
-        # Резервний варіант без таблиць
-        buffer = BytesIO()
-        report_text = "ЗВІТ З МОДЕЛЮВАННЯ СТРУМУ\n\n"
-        report_text += "Параметри моделювання:\n"
-        for key, value in input_data.items():
-            report_text += f"{key}: {value}\n"
-        buffer.write(report_text.encode('utf-8'))
-        buffer.seek(0)
-        return buffer
-        
-    except Exception as e:
-        # Резервний варіант
-        buffer = BytesIO()
-        report_text = "ZVIT Z MODELJUVANNJA STRUMU\n\n"
-        for key, value in input_data.items():
-            report_text += f"{key}: {value}\n"
-        buffer.write(report_text.encode('utf-8'))
-        buffer.seek(0)
-        return buffer
-        
-    except Exception as e:
-        # Резервний варіант
-        buffer = BytesIO()
-        report_text = "ЗВІТ З МОДЕЛЮВАННЯ СТРУМУ В НІОБІЇ\n\nПараметри моделювання:\n"
-        for key, value in input_data.items():
-            report_text += f"- {key}: {value}\n"
-        buffer.write(report_text.encode('utf-8'))
-        buffer.seek(0)
-        return buffer
-
 def main():
     st.set_page_config(page_title="Моделювання струму", layout="wide")
     st.title("🔬 Моделювання динаміки струму в ніобії")

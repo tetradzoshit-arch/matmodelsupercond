@@ -523,11 +523,12 @@ def racing_page():
         
         race_temp = st.slider("Температура (K)", 1.0, 18.0, 4.2, 0.1, key="race_temp")
         race_field = st.selectbox("Тип поля:", ["Статичне", "Лінійне", "Синусоїдальне"], key="race_field")
-        race_E0 = st.slider("Потужність поля E₀", 0.1, 10.0, 1.0, 0.1, key="race_E0")
-        race_speed = st.slider("Швидкість анімації", 0.1, 2.0, 0.5, 0.1, key="race_speed")
+        race_E0 = st.slider("Потужність поля E₀", 0.1, 2.0, 0.5, 0.1, key="race_E0")  # Уменьшил диапазон
+        race_speed = st.slider("Швидкість анімації", 0.5, 3.0, 1.0, 0.1, key="race_speed")
         
         if st.button("🎮 Старт гонки!", use_container_width=True):
             st.session_state.race_started = True
+            st.session_state.race_frame = 0
     
     with col2:
         st.subheader("📊 Стан системи")
@@ -548,82 +549,126 @@ def racing_page():
         progress_placeholder = st.empty()
         status_placeholder = st.empty()
         
-        # Расчет данных для гонки
-        t_race = np.linspace(0, 5, 50)
+        # Расчет данных для гонки (меньше точек для плавности)
+        t_race = np.linspace(0, 3, 30)  # Уменьшил время и количество точек
         j_super = calculate_superconducting_current(t_race, race_field, race_E0, 1.0, 5.0, 0.0, race_temp)
         j_metal = calculate_normal_current_drude(t_race, race_field, race_temp, race_E0, 1.0, 5.0, 0.0)
         
-        # Анимация
-        for i in range(len(t_race)):
-            progress_super = int((i / len(t_race)) * 100)
-            progress_metal = int((i / len(t_race)) * 85)  # Метал никогда не достигает 100%
+        # Нормализуем скорости для отображения (чтобы числа были разумными)
+        max_j = max(np.max(np.abs(j_super)), np.max(np.abs(j_metal)))
+        if max_j > 1e10:
+            scale_factor = 1e-10
+        else:
+            scale_factor = 1
+        
+        # Получаем текущий кадр
+        frame = st.session_state.race_frame
+        
+        if frame < len(t_race):
+            progress_super = int((frame / len(t_race)) * 100)
+            progress_metal = int((frame / len(t_race)) * 80)  # Метал никогда не достигает 100%
             
-            speed_super = abs(j_super[i]) if i < len(j_super) else abs(j_super[-1])
-            speed_metal = abs(j_metal[i]) if i < len(j_metal) else abs(j_metal[-1])
+            speed_super = abs(j_super[frame]) * scale_factor
+            speed_metal = abs(j_metal[frame]) * scale_factor
+            
+            # Форматируем скорость для отображения
+            if speed_super >= 1e6:
+                speed_super_str = f"{speed_super:.1e}"
+            else:
+                speed_super_str = f"{speed_super:.1f}"
+                
+            if speed_metal >= 1e6:
+                speed_metal_str = f"{speed_metal:.1e}"
+            else:
+                speed_metal_str = f"{speed_metal:.1f}"
             
             # Создаем HTML для анимации
             race_html = f"""
-            <div style="margin: 20px 0;">
-                <h3>🏎️ НАДПРОВІДНИК - Супер-шосе без опору! 🛣️</h3>
-                <div style="background: linear-gradient(90deg, #ff4444 {progress_super}%, #333333 {progress_super}%); 
-                          height: 50px; border-radius: 10px; margin: 10px 0; position: relative; border: 2px solid #ff4444;">
-                    <div style="position: absolute; left: {progress_super}%; top: -15px; font-size: 40px; transform: translateX(-50%);">🏎️</div>
+            <div style="margin: 20px 0; font-family: Arial, sans-serif;">
+                <div style="background: #f0f0f0; padding: 15px; border-radius: 10px; margin-bottom: 20px;">
+                    <h3 style="color: #ff4444; margin: 0;">🏎️ НАДПРОВІДНИК - Супер-шосе без опору! 🛣️</h3>
+                    <div style="background: linear-gradient(90deg, #ff4444 {progress_super}%, #e0e0e0 {progress_super}%); 
+                              height: 40px; border-radius: 8px; margin: 10px 0; position: relative; border: 2px solid #cc0000;">
+                        <div style="position: absolute; left: {progress_super}%; top: -20px; font-size: 35px; transform: translateX(-50%); transition: left 0.3s;">🏎️</div>
+                    </div>
+                    <p style="margin: 5px 0;"><strong>Швидкість: {speed_super_str} А/м²</strong> 🚀</p>
+                    <p style="margin: 5px 0; font-size: 12px; color: #666;">Прогрес: {progress_super}%</p>
                 </div>
-                <p><strong>Швидкість: {speed_super:.2e} А/м²</strong> 🚀</p>
                 
-                <h3>🚗 ЗВИЧАЙНИЙ МЕТАЛ - Міські пробки з опором! 🚦</h3>
-                <div style="background: linear-gradient(90deg, #4444ff {progress_metal}%, #333333 {progress_metal}%); 
-                          height: 50px; border-radius: 10px; margin: 10px 0; position: relative; border: 2px solid #4444ff;">
-                    <div style="position: absolute; left: {progress_metal}%; top: -15px; font-size: 40px; transform: translateX(-50%);">🚗</div>
-                    <div style="position: absolute; left: 70%; top: 5px; font-size: 25px;">{'🚧' * ((i // 5) % 3)}</div>
+                <div style="background: #f0f0f0; padding: 15px; border-radius: 10px;">
+                    <h3 style="color: #4444ff; margin: 0;">🚗 ЗВИЧАЙНИЙ МЕТАЛ - Міські пробки з опором! 🚦</h3>
+                    <div style="background: linear-gradient(90deg, #4444ff {progress_metal}%, #e0e0e0 {progress_metal}%); 
+                              height: 40px; border-radius: 8px; margin: 10px 0; position: relative; border: 2px solid #0000cc;">
+                        <div style="position: absolute; left: {progress_metal}%; top: -20px; font-size: 35px; transform: translateX(-50%); transition: left 0.3s;">🚗</div>
+                        <div style="position: absolute; left: 70%; top: 5px; font-size: 20px;">{'🚧' * ((frame // 3) % 3)}</div>
+                    </div>
+                    <p style="margin: 5px 0;"><strong>Швидкість: {speed_metal_str} А/м²</strong> 🐢</p>
+                    <p style="margin: 5px 0; font-size: 12px; color: #666;">Прогрес: {progress_metal}%</p>
                 </div>
-                <p><strong>Швидкість: {speed_metal:.2e} А/м²</strong> 🐢</p>
             </div>
             """
-            
-            # Обновляем прогресс-бары
-            progress_col1, progress_col2 = st.columns(2)
-            with progress_col1:
-                st.progress(progress_super / 100, text="Надпровідник")
-            with progress_col2:
-                st.progress(progress_metal / 100, text="Метал")
             
             # Обновляем анимацию
             animation_placeholder.markdown(race_html, unsafe_allow_html=True)
             
             # Обновляем статус
-            status_placeholder.markdown(f"**Час гонки: {t_race[i]:.1f}с** ⏱️")
+            status_placeholder.markdown(f"**Час гонки: {t_race[frame]:.1f}с** ⏱️ | **Кадр: {frame + 1}/{len(t_race)}**")
             
-            time.sleep(0.5 / race_speed)  # Контролируем скорость анимации
-        
-        # Финальные результаты
-        st.markdown("---")
-        st.subheader("📈 Результати гонки")
-        
-        col_stat1, col_stat2, col_stat3 = st.columns(3)
-        
-        with col_stat1:
-            max_super = np.max(np.abs(j_super))
-            max_metal = np.max(np.abs(j_metal))
-            st.metric("Макс. швидкість", f"{max_super:.2e} А/м²", 
-                     f"{(max_super/max_metal if max_metal > 0 else '∞')}x швидше" if race_temp < Tc else "Однаково")
-        
-        with col_stat2:
-            final_super = j_super[-1]
-            final_metal = j_metal[-1]
-            st.metric("Фінальна швидкість", f"{final_super:.2e} А/м²", 
-                     f"{(final_super/final_metal if final_metal > 0 else '∞')}x" if race_temp < Tc else "Однаково")
-        
-        with col_stat3:
-            if race_temp < Tc:
-                st.success("🏆 ПЕРЕМОГА НАДПРОВІДНИКА!")
-                st.balloons()
-            else:
-                st.info("🤝 НІЧИЯ! Обидва мають опір")
-        
-        if st.button("🔄 Нова гонка", use_container_width=True):
-            st.session_state.race_started = False
+            # Обновляем прогресс-бары
+            with progress_placeholder.container():
+                prog_col1, prog_col2 = st.columns(2)
+                with prog_col1:
+                    st.progress(progress_super / 100, text=f"Надпровідник: {progress_super}%")
+                with prog_col2:
+                    st.progress(progress_metal / 100, text=f"Метал: {progress_metal}%")
+            
+            # Увеличиваем кадр для следующего обновления
+            st.session_state.race_frame += 1
+            
+            # Автоматическое обновление через 1 секунду
+            time.sleep(1.0 / race_speed)
             st.rerun()
+        
+        else:
+            # Гонка завершена
+            st.session_state.race_started = False
+            
+            # Финальные результаты
+            st.markdown("---")
+            st.subheader("📈 Результати гонки")
+            
+            col_stat1, col_stat2, col_stat3 = st.columns(3)
+            
+            with col_stat1:
+                max_super = np.max(np.abs(j_super)) * scale_factor
+                max_metal = np.max(np.abs(j_metal)) * scale_factor
+                if max_metal > 0:
+                    ratio = max_super / max_metal
+                    delta = f"{ratio:.1f}x швидше" if ratio > 1 else "Однаково"
+                else:
+                    delta = "∞ швидше"
+                st.metric("Макс. швидкість", f"{max_super:.1e} А/м²", delta)
+            
+            with col_stat2:
+                final_super = j_super[-1] * scale_factor
+                final_metal = j_metal[-1] * scale_factor
+                if final_metal > 0:
+                    ratio = final_super / final_metal
+                    delta = f"{ratio:.1f}x" if ratio > 1 else "Однаково"
+                else:
+                    delta = "∞"
+                st.metric("Фінальна швидкість", f"{final_super:.1e} А/м²", delta)
+            
+            with col_stat3:
+                if race_temp < Tc:
+                    st.success("🏆 ПЕРЕМОГА НАДПРОВІДНИКА!")
+                    st.balloons()
+                else:
+                    st.info("🤝 НІЧИЯ! Обидва мають опір")
+            
+            if st.button("🔄 Нова гонка", use_container_width=True):
+                st.session_state.race_started = False
+                st.rerun()
     
     else:
         # Экран перед стартом
@@ -635,7 +680,7 @@ def racing_page():
             st.markdown("""
             ### 🏎️ Надпровідник (T < 9.2K):
             - **Без опору** - електрони летять вільно
-            - **Швидкість зростає** - без обмежень
+            - **Швидкість зростає** - без обмежень  
             - **Фініш на максимумі** - без втрат енергії
             """)
         
@@ -650,26 +695,6 @@ def racing_page():
         st.markdown("""
         ### 🎯 Порада:
         Встановіть температуру **нижче 9.2K** щоб побачити справжню силу надпровідника!
-        """)
-    
-    # Образовательный раздел
-    with st.expander("📚 Пояснення фізики гонки"):
-        st.markdown(f"""
-        **Чому надпровідник швидший?**
-        
-        - **Надпровідник (T < {Tc}K)**: Відповідно до рівнянь Лондонів, струм росте необмежено:
-          ```
-          dj/dt = (e²·n_s/m)·E
-          ```
-          Жодних втрат енергії!
-        
-        - **Звичайний метал (T ≥ {Tc}K)**: Модель Друде з часом релаксації:
-          ```
-          dj/dt = -j/τ + σ·E
-          ```
-          Електрони "зіштовхуються" з атомами решітки (правило Матіссена)
-        
-        **Результат**: Надпровідник завжди виграє гонку при низьких температурах! 🏆
         """)
 # =============================================================================
 # ОСНОВНА СТОРІНКА

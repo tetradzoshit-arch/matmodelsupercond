@@ -137,27 +137,60 @@ def analyze_mathematical_characteristics(t, j_data, state_name, field_type, omeg
     
     return analysis
 
-def save_plot_to_image(fig, filename_prefix="plot"):
-    """Збереження графіка Plotly як зображення для PDF"""
-    try:
-        # Створюємо тимчасовий файл
-        temp_dir = tempfile.gettempdir()
-        filepath = os.path.join(temp_dir, f"{filename_prefix}_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.png")
-        
-        # Зберігаємо графік як PNG
-        fig.write_image(filepath, width=800, height=500, scale=2)
-        return filepath
-    except Exception as e:
-        print(f"Помилка збереження графіка: {e}")
-        # Альтернативний спосіб через base64
-        try:
-            img_bytes = fig.to_image(format="png", width=800, height=500, scale=2)
-            filepath = os.path.join(tempfile.gettempdir(), f"{filename_prefix}_temp.png")
-            with open(filepath, "wb") as f:
-                f.write(img_bytes)
-            return filepath
-        except:
-            return None
+        # Додавання графіків на окремі сторінки
+        if saved_plots:
+            pdf.showPage()  # Нова сторінка для графіків
+            pdf.setFont(font_name, 16)
+            pdf.drawString(100, 520, "ГРАФІКИ РЕЗУЛЬТАТІВ")
+            pdf.setFont(font_name, 12)
+            
+            for i, plot_data in enumerate(saved_plots):
+                try:
+                    # Зберігаємо графік як зображення
+                    plot_path = save_plot_to_image(plot_data, f"plot_{i}")
+                    
+                    if plot_path and os.path.exists(plot_path):
+                        # Додаємо заголовок для графіка
+                        pdf.setFont(font_name, 14)
+                        
+                        if plot_data['state'] == 'Надпровідник':
+                            title = f"Графік {i+1}: Надпровідник при T={plot_data['temperature']}K"
+                        elif plot_data['state'] == 'Звичайний метал':
+                            title = f"Графік {i+1}: Звичайний метал при T={plot_data['temperature']}K"
+                        else:
+                            title = f"Графік {i+1}: Порівняння станів при T={plot_data['temperature']}K"
+                        
+                        pdf.drawString(100, 490, title)
+                        
+                        # Вставляємо графік
+                        try:
+                            img = ImageReader(plot_path)
+                            # Зменшуємо розмір для кращого відображення
+                            pdf.drawImage(img, 50, 150, width=700, height=400, preserveAspectRatio=True)
+                        except Exception as img_error:
+                            pdf.drawString(100, 470, f"Помилка завантаження зображення: {img_error}")
+                        
+                        # Додаємо опис графіка
+                        pdf.setFont(font_name, 10)
+                        description = f"Тип поля: {plot_data['field_type']}, E₀={plot_data['E0']} В/м, j₀={plot_data['j0']} А/м²"
+                        pdf.drawString(100, 140, description)
+                        
+                        # Видаляємо тимчасовий файл
+                        try:
+                            os.remove(plot_path)
+                        except:
+                            pass
+                        
+                        # Якщо це не останній графік, створюємо нову сторінку
+                        if i < len(saved_plots) - 1:
+                            pdf.showPage()
+                            pdf.setFont(font_name, 12)
+                            
+                except Exception as e:
+                    print(f"Помилка при додаванні графіка {i}: {e}")
+                    # Додаємо повідомлення про помилку в PDF
+                    pdf.drawString(100, 470, f"Помилка створення графіка {i+1}")
+                    continue
             
 def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots):
     """Створення PDF звіту з графіками"""
@@ -357,68 +390,43 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
                 pdf.setFont(font_name, 12)
                 y_position = 490
         
-        # Додавання графіків на окремі сторінки
-        if saved_plots:
+       )
+                          if saved_plots:
             pdf.showPage()  # Нова сторінка для графіків
+            pdf.setFont(font_name, 16)
+            pdf.drawString(100, 520, "ГРАФІКИ РЕЗУЛЬТАТІВ")
+            pdf.setFont(font_name, 12)
             
             for i, plot_data in enumerate(saved_plots):
                 try:
-                    # Створюємо графік для PDF
-                    fig_pdf = go.Figure()
-                    
-                    if plot_data['state'] == 'Надпровідник':
-                        fig_pdf.add_trace(go.Scatter(
-                            x=plot_data['t'], y=plot_data['j_data'], 
-                            name=f"Надпровідник (T={plot_data['temperature']}K)",
-                            line=dict(color='red', width=3)
-                        ))
-                        title = f"Графік {i+1}: Надпровідник при T={plot_data['temperature']}K"
-                    elif plot_data['state'] == 'Звичайний метал':
-                        fig_pdf.add_trace(go.Scatter(
-                            x=plot_data['t'], y=plot_data['j_data'],
-                            name=f"Метал (T={plot_data['temperature']}K, {plot_data['model']})",
-                            line=dict(color='blue', width=3)
-                        ))
-                        title = f"Графік {i+1}: Звичайний метал при T={plot_data['temperature']}K"
-                    elif plot_data['state'] in ['Порівняння', 'Кілька графіків']:
-                        fig_pdf.add_trace(go.Scatter(
-                            x=plot_data['t'], y=plot_data['j_super'], 
-                            name=f"Надпровідник (T={plot_data['temperature']}K)", 
-                            line=dict(color='red', width=3)
-                        ))
-                        fig_pdf.add_trace(go.Scatter(
-                            x=plot_data['t'], y=plot_data['j_normal'], 
-                            name=f"Метал (T={plot_data['temperature']}K)", 
-                            line=dict(color='blue', width=3)
-                        ))
-                        title = f"Графік {i+1}: Порівняння станів при T={plot_data['temperature']}K"
-                    
-                    fig_pdf.update_layout(
-                        title=title,
-                        xaxis_title="Час (с)",
-                        yaxis_title="Густина струму (А/м²)",
-                        height=500,
-                        showlegend=True,
-                        font=dict(size=12)
-                    )
-                    fig_pdf.update_yaxes(tickformat=".2e")
-                    
                     # Зберігаємо графік як зображення
-                    plot_path = save_plot_to_image(fig_pdf, f"plot_{i}")
+                    plot_path = save_plot_to_image(plot_data, f"plot_{i}")
                     
                     if plot_path and os.path.exists(plot_path):
                         # Додаємо заголовок для графіка
                         pdf.setFont(font_name, 14)
-                        pdf.drawString(100, 520, title)
+                        
+                        if plot_data['state'] == 'Надпровідник':
+                            title = f"Графік {i+1}: Надпровідник при T={plot_data['temperature']}K"
+                        elif plot_data['state'] == 'Звичайний метал':
+                            title = f"Графік {i+1}: Звичайний метал при T={plot_data['temperature']}K"
+                        else:
+                            title = f"Графік {i+1}: Порівняння станів при T={plot_data['temperature']}K"
+                        
+                        pdf.drawString(100, 490, title)
                         
                         # Вставляємо графік
-                        img = ImageReader(plot_path)
-                        pdf.drawImage(img, 50, 200, width=650, height=300, preserveAspectRatio=True)
+                        try:
+                            img = ImageReader(plot_path)
+                            # Зменшуємо розмір для кращого відображення
+                            pdf.drawImage(img, 50, 150, width=700, height=400, preserveAspectRatio=True)
+                        except Exception as img_error:
+                            pdf.drawString(100, 470, f"Помилка завантаження зображення: {img_error}")
                         
                         # Додаємо опис графіка
                         pdf.setFont(font_name, 10)
                         description = f"Тип поля: {plot_data['field_type']}, E₀={plot_data['E0']} В/м, j₀={plot_data['j0']} А/м²"
-                        pdf.drawString(100, 180, description)
+                        pdf.drawString(100, 140, description)
                         
                         # Видаляємо тимчасовий файл
                         try:
@@ -433,6 +441,8 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
                             
                 except Exception as e:
                     print(f"Помилка при додаванні графіка {i}: {e}")
+                    # Додаємо повідомлення про помилку в PDF
+                    pdf.drawString(100, 470, f"Помилка створення графіка {i+1}")
                     continue
         
         pdf.save()

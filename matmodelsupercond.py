@@ -1497,7 +1497,7 @@ def main():
         animations_page()
     elif page == "🏎️ Електронні Гонки":
         racing_page()
-     elif page == "🔮 Передбач майбутнє": 
+    elif page == "🔮 Передбач майбутнє":
         prediction_game_page()
 
 if __name__ == "__main__":

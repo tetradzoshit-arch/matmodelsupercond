@@ -839,39 +839,189 @@ def main_page():
 # СТОРІНКА АНІМАЦІЙ
 # =============================================================================
 
+# =============================================================================
+# СТОРІНКА АНІМАЦІЙ
+# =============================================================================
+
 def animations_page():
     st.header("🎬 Демонстраційні анімації")
     
+    # Параметри для всіх анімацій
     col1, col2 = st.columns([2, 1])
     
-    with col1:
-        # Параметри для анімацій
-        st.subheader("Параметри анімації")
+    with col2:
+        st.subheader("Параметри анімацій")
         anim_field_type = st.selectbox("Тип поля:", ["Статичне", "Лінійне", "Синусоїдальне"], key="anim_field")
         anim_E0 = st.slider("Напруженість E₀ (В/м)", 0.1, 100.0, 1.0, 0.1, key="anim_E0")
         anim_j0 = st.slider("Початковий струм j₀ (А/м²)", 0.0, 100.0, 0.0, 0.1, key="anim_j0")
         anim_t_max = st.slider("Час моделювання (с)", 0.1, 20.0, 5.0, 0.1, key="anim_t_max")
+        anim_speed = st.slider("Швидкість анімації", 0.1, 1.0, 0.15, 0.05, key="anim_speed")
         
         anim_a = st.slider("Швидкість росту a", 0.1, 10.0, 1.0, 0.1, key="anim_a") if anim_field_type == "Лінійне" else 1.0
         anim_omega = st.slider("Частота ω (рад/с)", 0.1, 50.0, 5.0, 0.1, key="anim_omega") if anim_field_type == "Синусоїдальне" else 1.0
         
-        # Запуск анімацій
-        run_temperature_animation(anim_field_type, anim_E0, anim_a, anim_omega, anim_j0, anim_t_max)
-        
-        st.markdown("---")
-        run_field_comparison_animation()
-    
-    with col2:
-        st.subheader("Параметри анімації")
-        anim_speed = st.slider("Швидкість анімації", 0.1, 1.0, 0.15, 0.05, key="anim_speed")
         st.info(f"Крок температури: 0.5K")
         st.info(f"Всього кадрів: 35")
+    
+    with col1:
+        # Анімація зміни температури
+        st.subheader("🌡️ Анімація зміни температури")
+        st.write("Плавна зміна температури від 1K до 18K з кроком 0.5K")
         
-        run_transition_animation(anim_field_type, anim_E0, anim_a, anim_omega, anim_j0, anim_t_max, anim_speed)
+        if st.button("▶️ Запустити температурну анімацію", key="temp_anim", use_container_width=True):
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            plot_placeholder = st.empty()
+            
+            temps = np.linspace(1, 18, 35)
+            
+            for i, temp in enumerate(temps):
+                progress = int((i / len(temps)) * 100)
+                progress_bar.progress(progress)
+                
+                state = "Надпровідник" if temp < Tc else "Метал"
+                status_text.text(f"Температура: {temp:.1f} K | Стан: {state}")
+                
+                t_anim = np.linspace(0, anim_t_max, 200)
+                j_super = calculate_superconducting_current(t_anim, anim_field_type, anim_E0, anim_a, anim_omega, anim_j0, temp)
+                j_normal = calculate_normal_current_drude(t_anim, anim_field_type, temp, anim_E0, anim_a, anim_omega, anim_j0)
+                
+                fig_anim = go.Figure()
+                fig_anim.add_trace(go.Scatter(x=t_anim, y=j_super, name='Надпровідник', 
+                                            line=dict(color='red', width=3)))
+                fig_anim.add_trace(go.Scatter(x=t_anim, y=j_normal, name='Метал', 
+                                            line=dict(color='blue', width=3)))
+                
+                fig_anim.update_layout(
+                    title=f"T = {temp:.1f} K ({state})",
+                    xaxis_title="Час (с)",
+                    yaxis_title="Густина струму (А/м²)",
+                    height=500
+                )
+                fig_anim.update_yaxes(tickformat=".2e")
+                
+                plot_placeholder.plotly_chart(fig_anim, use_container_width=True)
+                time.sleep(anim_speed)
+            
+            progress_bar.progress(100)
+            status_text.text("✅ Анімація завершена!")
         
         st.markdown("---")
-        st.subheader("Нові анімації")
-        st.info("Додавайте нові функції в розділ ANIMATIONS")
+        
+        # Анімація переходу через Tc
+        st.subheader("⚡ Анімація переходу через T_c")
+        st.write("Плавний перехід через критичну температуру 9.2K")
+        
+        if st.button("▶️ Запустити анімацію переходу", key="transition_anim", use_container_width=True):
+            progress_bar2 = st.progress(0)
+            status_text2 = st.empty()
+            plot_placeholder2 = st.empty()
+            
+            transition_temps = np.linspace(8.0, 11.0, 25)
+            
+            for i, T_trans in enumerate(transition_temps):
+                progress = int((i / len(transition_temps)) * 100)
+                progress_bar2.progress(progress)
+                
+                state = "Надпровідник" if T_trans < Tc else "Метал"
+                status_text2.text(f"T = {T_trans:.2f} K | Перехід до: {state}")
+                
+                t_trans = np.linspace(0, min(anim_t_max, 2.0), 100)
+                
+                if T_trans < Tc:
+                    j_data = calculate_superconducting_current(t_trans, anim_field_type, anim_E0, anim_a, anim_omega, anim_j0, T_trans)
+                    color = 'red'
+                else:
+                    j_data = calculate_normal_current_drude(t_trans, anim_field_type, T_trans, anim_E0, anim_a, anim_omega, anim_j0)
+                    color = 'blue'
+                
+                fig_trans = go.Figure()
+                fig_trans.add_trace(go.Scatter(x=t_trans, y=j_data, name=state,
+                                             line=dict(color=color, width=4)))
+                
+                fig_trans.update_layout(
+                    title=f"Перехід через T_c: {T_trans:.2f} K",
+                    xaxis_title="Час (с)",
+                    yaxis_title="Густина струму (А/м²)",
+                    height=400,
+                    showlegend=True
+                )
+                fig_trans.update_yaxes(tickformat=".2e")
+                
+                plot_placeholder2.plotly_chart(fig_trans, use_container_width=True)
+                time.sleep(anim_speed)
+            
+            progress_bar2.progress(100)
+            status_text2.text("✅ Перехід завершено!")
+        
+        st.markdown("---")
+        
+        # Нова анімація - порівняння типів полів
+        st.subheader("🔄 Порівняння типів полів")
+        st.write("Порівняння поведінки струму для різних типів електричних полів")
+        
+        temp_comparison = st.slider("Температура для порівняння", 1.0, 18.0, 4.2, 0.1, key="temp_comp")
+        
+        if st.button("▶️ Запустити порівняння полів", key="field_comparison", use_container_width=True):
+            plot_placeholder3 = st.empty()
+            progress_bar3 = st.progress(0)
+            
+            field_types = ["Статичне", "Лінійне", "Синусоїдальне"]
+            colors = ['red', 'green', 'blue']
+            t_comp = np.linspace(0, 5.0, 300)
+            
+            for i, field_type in enumerate(field_types):
+                progress = int((i / len(field_types)) * 100)
+                progress_bar3.progress(progress)
+                
+                fig_comp = go.Figure()
+                
+                # Надпровідник
+                j_super = calculate_superconducting_current(t_comp, field_type, 1.0, 1.0, 5.0, 0.0, temp_comparison)
+                fig_comp.add_trace(go.Scatter(x=t_comp, y=j_super, 
+                                            name=f'Надпровідник - {field_type}',
+                                            line=dict(color=colors[i], width=3, dash='solid')))
+                
+                # Метал
+                j_normal = calculate_normal_current_drude(t_comp, field_type, temp_comparison, 1.0, 1.0, 5.0, 0.0)
+                fig_comp.add_trace(go.Scatter(x=t_comp, y=j_normal, 
+                                            name=f'Метал - {field_type}',
+                                            line=dict(color=colors[i], width=3, dash='dot')))
+                
+                fig_comp.update_layout(
+                    title=f"Порівняння типів полів при T = {temp_comparison}K",
+                    xaxis_title="Час (с)",
+                    yaxis_title="Густина струму (А/м²)",
+                    height=500
+                )
+                fig_comp.update_yaxes(tickformat=".2e")
+                
+                plot_placeholder3.plotly_chart(fig_comp, use_container_width=True)
+                time.sleep(1.0)
+            
+            progress_bar3.progress(100)
+            st.success("✅ Порівняння завершено!")
+    
+    # Інформаційний розділ
+    with st.expander("📖 Інформація про анімації"):
+        st.markdown("""
+        **Доступні анімації:**
+        
+        🌡️ **Температурна анімація:**
+        - Показує зміну струму при плавній зміні температури
+        - Від 1K до 18K з кроком 0.5K
+        - Демонструє перехід між надпровідним та звичайним станами
+        
+        ⚡ **Анімація переходу через T_c:**
+        - Детальний перехід через критичну температуру 9.2K
+        - Від 8K до 11K для детального аналізу
+        - Показує різку зміну поведінки струму
+        
+        🔄 **Порівняння типів полів:**
+        - Порівнює три типи електричних полів
+        - Для кожної температури
+        - Демонструє різницю в динаміці струму
+        """)
 
 # =============================================================================
 # ОСНОВНА ЛОГІКА ДОДАТКУ

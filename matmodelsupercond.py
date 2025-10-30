@@ -7,8 +7,6 @@ from scipy.signal import find_peaks
 import tempfile
 import os
 from reportlab.lib.utils import ImageReader
-import matplotlib.pyplot as plt
-import matplotlib
 
 # ФІЗИЧНІ КОНСТАНТИ ДЛЯ НІОБІЮ
 e = 1.602e-19  # Кл
@@ -127,49 +125,8 @@ def analyze_mathematical_characteristics(t, j_data, state_name, field_type, omeg
     
     return analysis
 
-def save_plot_to_image(plot_data, filename_prefix="plot"):
-    """Збереження графіка як зображення для PDF"""
-    try:
-        matplotlib.use('Agg')
-        temp_dir = tempfile.gettempdir()
-        filepath = os.path.join(temp_dir, f"{filename_prefix}_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.png")
-        
-        plt.figure(figsize=(10, 6))
-        
-        if plot_data['state'] == 'Надпровідник':
-            plt.plot(plot_data['t'], plot_data['j_data'], 
-                    label=f"Надпровідник (T={plot_data['temperature']}K)", 
-                    color='red', linewidth=2)
-        elif plot_data['state'] == 'Звичайний метал':
-            plt.plot(plot_data['t'], plot_data['j_data'],
-                    label=f"Метал (T={plot_data['temperature']}K, {plot_data['model']})",
-                    color='blue', linewidth=2)
-        elif plot_data['state'] in ['Порівняння', 'Кілька графіків']:
-            plt.plot(plot_data['t'], plot_data['j_super'], 
-                    label=f"Надпровідник (T={plot_data['temperature']}K)", 
-                    color='red', linewidth=2)
-            plt.plot(plot_data['t'], plot_data['j_normal'], 
-                    label=f"Метал (T={plot_data['temperature']}K)", 
-                    color='blue', linewidth=2)
-        
-        plt.xlabel('Час (с)')
-        plt.ylabel('Густина струму (А/м²)')
-        plt.title('Динаміка струму в ніобії')
-        plt.legend()
-        plt.grid(True, alpha=0.3)
-        plt.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
-        plt.tight_layout()
-        plt.savefig(filepath, dpi=150, bbox_inches='tight')
-        plt.close()
-        
-        return filepath
-        
-    except Exception as e:
-        print(f"Помилка збереження графіка: {e}")
-        return None
-
 def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots):
-    """Створення PDF звіту з графіками"""
+    """Створення PDF звіту"""
     try:
         from reportlab.lib.pagesizes import A4, landscape
         from reportlab.pdfgen import canvas
@@ -362,7 +319,7 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
                 pdf.setFont(font_name, 12)
                 y_position = 490
         
-        # Додавання інформації про графіки (без самих зображень)
+        # Інформація про збережені графіки (лише текст)
         if saved_plots:
             pdf.showPage()
             pdf.setFont(font_name, 16)
@@ -374,23 +331,26 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
             y_position -= 30
             
             for i, plot_data in enumerate(saved_plots):
-                pdf.drawString(100, y_position, f"Графік {i+1}:")
-                y_position -= 20
-                pdf.drawString(120, y_position, f"- Стан: {plot_data['state']}")
-                y_position -= 20
-                pdf.drawString(120, y_position, f"- Температура: {plot_data['temperature']} K")
-                y_position -= 20
-                pdf.drawString(120, y_position, f"- Тип поля: {plot_data['field_type']}")
-                y_position -= 20
-                pdf.drawString(120, y_position, f"- E₀: {plot_data['E0']} В/м")
-                y_position -= 20
-                pdf.drawString(120, y_position, f"- j₀: {plot_data['j0']} А/м²")
-                y_position -= 30
-                
                 if y_position < 100:
                     pdf.showPage()
                     pdf.setFont(font_name, 12)
                     y_position = 490
+                
+                pdf.setFont(font_name, 14)
+                pdf.drawString(100, y_position, f"Графік {i+1}:")
+                y_position -= 20
+                
+                pdf.setFont(font_name, 12)
+                pdf.drawString(120, y_position, f"Стан: {plot_data['state']}")
+                y_position -= 20
+                pdf.drawString(120, y_position, f"Температура: {plot_data['temperature']} K")
+                y_position -= 20
+                pdf.drawString(120, y_position, f"Тип поля: {plot_data['field_type']}")
+                y_position -= 20
+                pdf.drawString(120, y_position, f"E₀: {plot_data['E0']} В/м")
+                y_position -= 20
+                pdf.drawString(120, y_position, f"j₀: {plot_data['j0']} А/м²")
+                y_position -= 30
         
         pdf.save()
         buffer.seek(0)
@@ -404,71 +364,6 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
         for key, value in input_data.items():
             report_text += f"{key}: {value}\n"
         buffer.write(report_text.encode('utf-8'))
-                # ДОДАЙТЕ ЦЕЙ БЛОК В КІНЕЦЬ ФУНКЦІЇ create_pdf_report, ПІСЛЯ ВСІХ ТЕКСТОВИХ СТОРІНОК
-        
-        # ОКРЕМІ СТОРІНКИ З ГРАФІКАМИ
-        if saved_plots:
-            for i, plot_data in enumerate(saved_plots):
-                # Нова сторінка для кожного графіка
-                pdf.showPage()
-                
-                # Заголовок для графіка
-                pdf.setFont(font_name, 16)
-                if plot_data['state'] == 'Надпровідник':
-                    title = f"ГРАФІК {i+1}: НАДПРОВІДНИК (T={plot_data['temperature']}K)"
-                elif plot_data['state'] == 'Звичайний метал':
-                    title = f"ГРАФІК {i+1}: МЕТАЛ (T={plot_data['temperature']}K)"
-                else:
-                    title = f"ГРАФІК {i+1}: ПОРІВНЯННЯ (T={plot_data['temperature']}K)"
-                
-                pdf.drawString(100, 520, title)
-                
-                # Параметри графіка
-                pdf.setFont(font_name, 12)
-                pdf.drawString(100, 490, f"Тип поля: {plot_data['field_type']}")
-                pdf.drawString(100, 470, f"E₀: {plot_data['E0']} В/м, j₀: {plot_data['j0']} А/м²")
-                
-                # Створюємо тимчасовий файл для графіка
-                try:
-                    import matplotlib.pyplot as plt
-                    temp_file = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
-                    temp_path = temp_file.name
-                    temp_file.close()
-                    
-                    # Створюємо графік
-                    plt.figure(figsize=(10, 6))
-                    
-                    if plot_data['state'] == 'Надпровідник':
-                        plt.plot(plot_data['t'], plot_data['j_data'], 'r-', linewidth=3, label='Надпровідник')
-                    elif plot_data['state'] == 'Звичайний метал':
-                        plt.plot(plot_data['t'], plot_data['j_data'], 'b-', linewidth=3, label='Метал')
-                    elif plot_data['state'] in ['Порівняння', 'Кілька графіків']:
-                        plt.plot(plot_data['t'], plot_data['j_super'], 'r-', linewidth=3, label='Надпровідник')
-                        plt.plot(plot_data['t'], plot_data['j_normal'], 'b-', linewidth=3, label='Метал')
-                    
-                    plt.xlabel('Час (с)')
-                    plt.ylabel('Густина струму (А/м²)')
-                    plt.title('Динаміка струму в ніобії')
-                    plt.legend()
-                    plt.grid(True, alpha=0.3)
-                    plt.tight_layout()
-                    
-                    # Зберігаємо графік
-                    plt.savefig(temp_path, dpi=150, bbox_inches='tight')
-                    plt.close()
-                    
-                    # Додаємо графік в PDF
-                    img = ImageReader(temp_path)
-                    pdf.drawImage(img, 50, 150, width=700, height=300, preserveAspectRatio=True)
-                    
-                    # Видаляємо тимчасовий файл
-                    try:
-                        os.unlink(temp_path)
-                    except:
-                        pass
-                        
-                except Exception as e:
-                    pdf.drawString(100, 450, f"Помилка створення графіка: {str(e)}")
         buffer.seek(0)
         return buffer
 
@@ -536,16 +431,23 @@ def main():
                         plot_data['j_data'] = calc_func(plot_data['t'], field_type, current_temp, E0, a, omega, j0)
                         plot_data['state'] = 'Звичайний метал'
                         plot_data['model'] = metal_model
+                
                 elif comparison_mode == "Порівняння":
                     plot_data['j_super'] = calculate_superconducting_current(plot_data['t'], field_type, E0, a, omega, j0, T_common)
                     plot_data['j_normal'] = calculate_normal_current_drude(plot_data['t'], field_type, T_common, E0, a, omega, j0)
                     plot_data['state'] = 'Порівняння'
                     plot_data['model'] = 'Друде'
-                else:
-                    plot_data['j_super'] = calculate_superconducting_current(plot_data['t'], field_type, E0, a, omega, j0, T_multi)
-                    plot_data['j_normal'] = calculate_normal_current_drude(plot_data['t'], field_type, T_multi, E0, a, omega, j0)
-                    plot_data['state'] = 'Кілька графіків'
-                    plot_data['model'] = 'Друде'
+                
+                else:  # Режим "Кілька графіків" - зберігаємо тільки один стан
+                    auto_state = determine_state(current_temp)
+                    if auto_state == "Надпровідник":
+                        plot_data['j_data'] = calculate_superconducting_current(plot_data['t'], field_type, E0, a, omega, j0, current_temp)
+                        plot_data['state'] = 'Надпровідник'
+                        plot_data['model'] = 'Лондони'
+                    else:
+                        plot_data['j_data'] = calculate_normal_current_drude(plot_data['t'], field_type, current_temp, E0, a, omega, j0)
+                        plot_data['state'] = 'Звичайний метал'
+                        plot_data['model'] = 'Друде'
                 
                 st.session_state.saved_plots.append(plot_data)
                 st.success(f"Графік збережено! Всього збережено: {len(st.session_state.saved_plots)}")
@@ -579,7 +481,7 @@ def main():
                             name=f"Метал {i+1} (T={plot_data['temperature']}K, {plot_data['model']})",
                             line=dict(width=2), opacity=0.7
                         ))
-                    elif plot_data['state'] in ['Порівняння', 'Кілька графіків']:
+                    elif plot_data['state'] == 'Порівняння':
                         fig_saved.add_trace(go.Scatter(
                             x=plot_data['t'], y=plot_data['j_super'], 
                             name=f"Надпровідник {i+1}", line=dict(width=2), opacity=0.7
@@ -639,21 +541,18 @@ def main():
                     physical_analyses = [analyze_physical_characteristics(t, j_data, "Звичайний метал", field_type, current_temp, omega)]
                     math_analyses = [analyze_mathematical_characteristics(t, j_data, "Звичайний метал", field_type, omega)]
             
-            else:
-                j_super = calculate_superconducting_current(t, field_type, E0, a, omega, j0, T_multi)
-                j_normal = calculate_normal_current_drude(t, field_type, T_multi, E0, a, omega, j0)
-                
-                fig.add_trace(go.Scatter(x=t, y=j_super, name='Надпровідник', line=dict(color='red', width=3)))
-                fig.add_trace(go.Scatter(x=t, y=j_normal, name='Звичайний метал', line=dict(color='blue', width=3)))
-                
-                physical_analyses = [
-                    analyze_physical_characteristics(t, j_super, "Надпровідник", field_type, T_multi, omega),
-                    analyze_physical_characteristics(t, j_normal, "Звичайний метал", field_type, T_multi, omega)
-                ]
-                math_analyses = [
-                    analyze_mathematical_characteristics(t, j_super, "Надпровідник", field_type, omega),
-                    analyze_mathematical_characteristics(t, j_normal, "Звичайний метал", field_type, omega)
-                ]
+            else:  # Режим "Кілька графіків" - показуємо тільки один стан
+                auto_state = determine_state(current_temp)
+                if auto_state == "Надпровідник":
+                    j_data = calculate_superconducting_current(t, field_type, E0, a, omega, j0, current_temp)
+                    fig.add_trace(go.Scatter(x=t, y=j_data, name='Надпровідник', line=dict(color='red', width=3)))
+                    physical_analyses = [analyze_physical_characteristics(t, j_data, "Надпровідник", field_type, current_temp, omega)]
+                    math_analyses = [analyze_mathematical_characteristics(t, j_data, "Надпровідник", field_type, omega)]
+                else:
+                    j_data = calculate_normal_current_drude(t, field_type, current_temp, E0, a, omega, j0)
+                    fig.add_trace(go.Scatter(x=t, y=j_data, name='Звичайний метал', line=dict(color='blue', width=3)))
+                    physical_analyses = [analyze_physical_characteristics(t, j_data, "Звичайний метал", field_type, current_temp, omega)]
+                    math_analyses = [analyze_mathematical_characteristics(t, j_data, "Звичайний метал", field_type, omega)]
             
             fig.update_layout(
                 title="Динаміка густини струму в ніобії",
@@ -702,47 +601,4 @@ def main():
             st.write(f"**m =** {m:.3e} кг")
             st.write(f"**n₀ =** {n0:.2e} м⁻³")
             st.write(f"**τ_imp =** {tau_imp:.2e} с")
-            st.write(f"**T_c =** {Tc} K")
-
-        st.header("📄 Експорт результатів")
-        if st.button("📥 Згенерувати звіт", use_container_width=True):
-            input_data = {'field_type': field_type, 'E0': E0, 'j0': j0, 't_max': t_max, 'T_common': current_temp}
-            
-            t = np.linspace(0, t_max, 1000)
-            physical_analyses_for_report = []
-            math_analyses_for_report = []
-            
-            if comparison_mode == "Порівняння":
-                j_super = calculate_superconducting_current(t, field_type, E0, a, omega, j0, T_common)
-                j_normal = calculate_normal_current_drude(t, field_type, T_common, E0, a, omega, j0)
-                physical_analyses_for_report = [
-                    analyze_physical_characteristics(t, j_super, "Надпровідник", field_type, T_common, omega),
-                    analyze_physical_characteristics(t, j_normal, "Звичайний метал", field_type, T_common, omega)
-                ]
-                math_analyses_for_report = [
-                    analyze_mathematical_characteristics(t, j_super, "Надпровідник", field_type, omega),
-                    analyze_mathematical_characteristics(t, j_normal, "Звичайний метал", field_type, omega)
-                ]
-            elif comparison_mode == "Один стан":
-                auto_state = determine_state(current_temp)
-                if auto_state == "Надпровідник":
-                    j_data = calculate_superconducting_current(t, field_type, E0, a, omega, j0, current_temp)
-                    physical_analyses_for_report = [analyze_physical_characteristics(t, j_data, "Надпровідник", field_type, current_temp, omega)]
-                    math_analyses_for_report = [analyze_mathematical_characteristics(t, j_data, "Надпровідник", field_type, omega)]
-                else:
-                    calc_func = calculate_normal_current_drude if metal_model == "Модель Друде (з перехідним процесом)" else calculate_normal_current_ohm
-                    j_data = calc_func(t, field_type, current_temp, E0, a, omega, j0)
-                    physical_analyses_for_report = [analyze_physical_characteristics(t, j_data, "Звичайний метал", field_type, current_temp, omega)]
-                    math_analyses_for_report = [analyze_mathematical_characteristics(t, j_data, "Звичайний метал", field_type, omega)]
-            
-            pdf_buffer = create_pdf_report(input_data, physical_analyses_for_report, math_analyses_for_report, st.session_state.saved_plots)
-            st.download_button(
-                label="⬇️ Завантажити PDF звіт",
-                data=pdf_buffer,
-                file_name="звіт_моделювання.pdf",
-                mime="application/pdf",
-                use_container_width=True
-            )
-
-if __name__ == "__main__":
-    main()
+            st.write(f"**T_c =** {Tc}

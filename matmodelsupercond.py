@@ -391,7 +391,7 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
                 y_position = 490
         
        )
-                          if saved_plots:
+            if saved_plots:
             pdf.showPage()  # Нова сторінка для графіків
             pdf.setFont(font_name, 16)
             pdf.drawString(100, 520, "ГРАФІКИ РЕЗУЛЬТАТІВ")

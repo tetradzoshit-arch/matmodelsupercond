@@ -404,6 +404,71 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
         for key, value in input_data.items():
             report_text += f"{key}: {value}\n"
         buffer.write(report_text.encode('utf-8'))
+                # ДОДАЙТЕ ЦЕЙ БЛОК В КІНЕЦЬ ФУНКЦІЇ create_pdf_report, ПІСЛЯ ВСІХ ТЕКСТОВИХ СТОРІНОК
+        
+        # ОКРЕМІ СТОРІНКИ З ГРАФІКАМИ
+        if saved_plots:
+            for i, plot_data in enumerate(saved_plots):
+                # Нова сторінка для кожного графіка
+                pdf.showPage()
+                
+                # Заголовок для графіка
+                pdf.setFont(font_name, 16)
+                if plot_data['state'] == 'Надпровідник':
+                    title = f"ГРАФІК {i+1}: НАДПРОВІДНИК (T={plot_data['temperature']}K)"
+                elif plot_data['state'] == 'Звичайний метал':
+                    title = f"ГРАФІК {i+1}: МЕТАЛ (T={plot_data['temperature']}K)"
+                else:
+                    title = f"ГРАФІК {i+1}: ПОРІВНЯННЯ (T={plot_data['temperature']}K)"
+                
+                pdf.drawString(100, 520, title)
+                
+                # Параметри графіка
+                pdf.setFont(font_name, 12)
+                pdf.drawString(100, 490, f"Тип поля: {plot_data['field_type']}")
+                pdf.drawString(100, 470, f"E₀: {plot_data['E0']} В/м, j₀: {plot_data['j0']} А/м²")
+                
+                # Створюємо тимчасовий файл для графіка
+                try:
+                    import matplotlib.pyplot as plt
+                    temp_file = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
+                    temp_path = temp_file.name
+                    temp_file.close()
+                    
+                    # Створюємо графік
+                    plt.figure(figsize=(10, 6))
+                    
+                    if plot_data['state'] == 'Надпровідник':
+                        plt.plot(plot_data['t'], plot_data['j_data'], 'r-', linewidth=3, label='Надпровідник')
+                    elif plot_data['state'] == 'Звичайний метал':
+                        plt.plot(plot_data['t'], plot_data['j_data'], 'b-', linewidth=3, label='Метал')
+                    elif plot_data['state'] in ['Порівняння', 'Кілька графіків']:
+                        plt.plot(plot_data['t'], plot_data['j_super'], 'r-', linewidth=3, label='Надпровідник')
+                        plt.plot(plot_data['t'], plot_data['j_normal'], 'b-', linewidth=3, label='Метал')
+                    
+                    plt.xlabel('Час (с)')
+                    plt.ylabel('Густина струму (А/м²)')
+                    plt.title('Динаміка струму в ніобії')
+                    plt.legend()
+                    plt.grid(True, alpha=0.3)
+                    plt.tight_layout()
+                    
+                    # Зберігаємо графік
+                    plt.savefig(temp_path, dpi=150, bbox_inches='tight')
+                    plt.close()
+                    
+                    # Додаємо графік в PDF
+                    img = ImageReader(temp_path)
+                    pdf.drawImage(img, 50, 150, width=700, height=300, preserveAspectRatio=True)
+                    
+                    # Видаляємо тимчасовий файл
+                    try:
+                        os.unlink(temp_path)
+                    except:
+                        pass
+                        
+                except Exception as e:
+                    pdf.drawString(100, 450, f"Помилка створення графіка: {str(e)}")
         buffer.seek(0)
         return buffer
 

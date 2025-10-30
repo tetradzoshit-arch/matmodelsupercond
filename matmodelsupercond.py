@@ -303,32 +303,86 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
             y_position -= 25
 
         # Математичний аналіз з кольоровими таблицями
-        if math_analyses:
-            if y_position < 200:
-                pdf.showPage()
-                pdf.setFont(font_name, 14)
-                y_position = height - 80
-            
-            pdf.setFont(font_name, 16)
-            pdf.drawString(100, y_position, "МАТЕМАТИЧНИЙ АНАЛІЗ")
-            y_position -= 35
-            
-            # Заголовок таблиці
-            col_widths = [110, 110, 110, 110, 110, 110]
-            col_positions = [60, 170, 280, 390, 500, 610]
-            row_height = 30
-            
-            # Кольорові заголовки
+       # Математичний аналіз з кольоровими таблицями
+if math_analyses:
+    if y_position < 200:
+        pdf.showPage()
+        pdf.setFont(font_name, 14)
+        y_position = height - 80
+    
+    pdf.setFont(font_name, 16)
+    pdf.drawString(100, y_position, "МАТЕМАТИЧНИЙ АНАЛІЗ")
+    y_position -= 35
+    
+    # Заголовок таблиці - більше колонок для всіх даних
+    col_widths = [100, 100, 80, 80, 80, 80, 80, 80, 80]
+    col_positions = [50, 150, 250, 330, 410, 490, 570, 650, 730]
+    row_height = 30
+    
+    # Кольорові заголовки
+    pdf.setFillColor(colors.lightgreen)
+    pdf.rect(50, y_position - row_height, sum(col_widths), row_height, fill=1, stroke=0)
+    pdf.setFillColor(colors.black)
+    
+    headers = ["Функція", "Тип функції", "f(0)", "f(t_max)", "max f(t)", "min f(t)", "f'(max)", "f'(min)", "f'(сер)"]
+    pdf.setFont(font_name, 9)  # Менший шрифт для заголовків
+    for i, header in enumerate(headers):
+        pdf.drawString(col_positions[i] + 5, y_position - 18, header)
+    
+    y_position -= row_height + 8
+    
+    # Дані з кольоровим фоном
+    pdf.setFont(font_name, 8)  # Менший шрифт для даних
+    for i, analysis in enumerate(math_analyses):
+        if y_position < 120:
+            pdf.showPage()
+            pdf.setFont(font_name, 14)
+            y_position = height - 80
+            # Повторюємо заголовки
             pdf.setFillColor(colors.lightgreen)
-            pdf.rect(60, y_position - row_height, sum(col_widths), row_height, fill=1, stroke=0)
+            pdf.rect(50, y_position - row_height, sum(col_widths), row_height, fill=1, stroke=0)
             pdf.setFillColor(colors.black)
-            
-            headers = ["Функція", "f(0)", "max f(t)", "f'(max)", "f'(min)", "f'(сер)"]
-            pdf.setFont(font_name, 11)
-            for i, header in enumerate(headers):
-                pdf.drawString(col_positions[i] + 8, y_position - 18, header)
-            
+            pdf.setFont(font_name, 9)
+            for j, header in enumerate(headers):
+                pdf.drawString(col_positions[j] + 5, y_position - 18, header)
             y_position -= row_height + 8
+            pdf.setFont(font_name, 8)
+        
+        # Кольоровий фон для рядків
+        if i % 2 == 0:
+            pdf.setFillColor(colors.lightgrey)
+        else:
+            pdf.setFillColor(colors.whitesmoke)
+        
+        pdf.rect(50, y_position - row_height, sum(col_widths), row_height, fill=1, stroke=0)
+        pdf.setFillColor(colors.black)
+        
+        # Отримуємо всі значення
+        func_type = analysis.get('Тип функції', '')
+        f_0 = analysis.get('f(0)', '')
+        f_tmax = analysis.get('f(t_max)', analysis.get('f(t_max)', 'N/A'))
+        f_max = analysis.get('max f(t)', '')
+        f_min = analysis.get('min f(t)', '')
+        f_prime_max = analysis.get("f'(max)", analysis.get('Макс. швидкість', 'N/A'))
+        f_prime_min = analysis.get("f'(min)", 'N/A')
+        f_prime_avg = analysis.get("f'(середнє)", analysis.get("f'(сер)", 'N/A'))
+        
+        cells = [
+            analysis.get('Функція', '')[:12],
+            func_type[:15] if func_type else 'N/A',
+            f_0[:10],
+            f_tmax[:10] if f_tmax else 'N/A',
+            f_max[:10],
+            f_min[:10],
+            str(f_prime_max)[:10],
+            str(f_prime_min)[:10],
+            str(f_prime_avg)[:10]
+        ]
+        
+        for j, cell in enumerate(cells):
+            pdf.drawString(col_positions[j] + 5, y_position - 18, str(cell))
+        
+        y_position -= row_height + 8
             
             # Дані з кольоровим фоном
             pdf.setFont(font_name, 9)

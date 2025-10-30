@@ -186,24 +186,25 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
         except:
             font_name = 'Helvetica'
         
-        # Заголовок
+        # Сторінка 1: Загальна інформація
         pdf.setFont(font_name, 16)
         pdf.drawString(100, 520, "ЗВІТ З МОДЕЛЮВАННЯ СТРУМУ В НІОБІЇ")
+        
         pdf.setFont(font_name, 12)
         y_position = 490
         
         # Параметри моделювання
         pdf.drawString(100, y_position, "Параметри моделювання:")
-        for param, value in [
-            ("Тип поля", input_data['field_type']),
-            ("Напруженість поля E₀", f"{input_data['E0']} В/м"),
-            ("Початковий струм j₀", f"{input_data['j0']} А/м²"),
-            ("Час моделювання", f"{input_data['t_max']} с"),
-            ("Температура", f"{input_data['T_common']} K")
-        ]:
-            y_position -= 20
-            pdf.drawString(120, y_position, f"- {param}: {value}")
-        
+        y_position -= 20
+        pdf.drawString(120, y_position, f"- Тип поля: {input_data['field_type']}")
+        y_position -= 20
+        pdf.drawString(120, y_position, f"- Напруженість поля E₀: {input_data['E0']} В/м")
+        y_position -= 20
+        pdf.drawString(120, y_position, f"- Початковий струм j₀: {input_data['j0']} А/м²")
+        y_position -= 20
+        pdf.drawString(120, y_position, f"- Час моделювання: {input_data['t_max']} с")
+        y_position -= 20
+        pdf.drawString(120, y_position, f"- Температура: {input_data['T_common']} K")
         y_position -= 30
 
         # Фізичний аналіз
@@ -211,7 +212,6 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
             pdf.drawString(100, y_position, "Фізичний аналіз:")
             y_position -= 25
             
-            headers = ["Стан", "Температура", "j(0)", "j_max", "Поведінка"]
             col_widths = [120, 80, 100, 100, 180]
             row_height = 20
             
@@ -219,6 +219,7 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
             pdf.rect(100, y_position - row_height, sum(col_widths), row_height, fill=1)
             pdf.setFillColorRGB(0, 0, 0)
             
+            headers = ["Стан", "Температура", "j(0)", "j_max", "Поведінка"]
             x_pos = 100
             for i, header in enumerate(headers):
                 pdf.drawString(x_pos + 5, y_position - 15, header)
@@ -236,8 +237,16 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
                 pdf.setFillColorRGB(0, 0, 0)
                 
                 x_pos = 100
-                for j, key in enumerate(['Стан', 'Температура', 'j(0)', 'j_max', 'Поведінка']):
-                    pdf.drawString(x_pos + 5, y_position - 15, analysis.get(key, ''))
+                cells = [
+                    analysis.get('Стан', ''),
+                    analysis.get('Температура', ''),
+                    analysis.get('j(0)', ''),
+                    analysis.get('j_max', ''),
+                    analysis.get('Поведінка', '')
+                ]
+                
+                for j, cell in enumerate(cells):
+                    pdf.drawString(x_pos + 5, y_position - 15, cell)
                     x_pos += col_widths[j]
                 
                 y_position -= row_height
@@ -245,6 +254,14 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
                     pdf.showPage()
                     pdf.setFont(font_name, 12)
                     y_position = 490
+                    pdf.setFillColorRGB(0.8, 0.8, 1.0)
+                    pdf.rect(100, y_position - row_height, sum(col_widths), row_height, fill=1)
+                    pdf.setFillColorRGB(0, 0, 0)
+                    x_pos = 100
+                    for k, header in enumerate(headers):
+                        pdf.drawString(x_pos + 5, y_position - 15, header)
+                        x_pos += col_widths[k]
+                    y_position -= row_height
             
             y_position -= 25
 
@@ -253,7 +270,6 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
             pdf.drawString(100, y_position, "Математичний аналіз:")
             y_position -= 25
             
-            headers = ["Функція", "Тип функції", "f(0)", "max f(t)", "f'(max)", "f'(min)", "f'(сер)"]
             col_widths = [100, 100, 80, 80, 80, 80, 80]
             row_height = 20
             
@@ -261,10 +277,11 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
             pdf.rect(100, y_position - row_height, sum(col_widths), row_height, fill=1)
             pdf.setFillColorRGB(0, 0, 0)
             
+            headers = ["Функція", "Тип функції", "f(0)", "max f(t)", "f'(max)", "f'(min)", "f'(сер)"]
             x_pos = 100
-            for header in headers:
+            for i, header in enumerate(headers):
                 pdf.drawString(x_pos + 3, y_position - 15, header)
-                x_pos += 80
+                x_pos += col_widths[i]
             
             y_position -= row_height
             
@@ -278,6 +295,7 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
                 pdf.setFillColorRGB(0, 0, 0)
                 
                 x_pos = 100
+                
                 cells = [
                     analysis.get('Функція', ''),
                     analysis.get('Тип функції', ''),
@@ -285,18 +303,32 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
                     analysis.get('max f(t)', ''),
                     analysis.get("f'(max)", 'N/A'),
                     analysis.get("f'(min)", 'N/A'),
-                    analysis.get("f'(середнє)", analysis.get("f'(сер)", 'N/A'))
+                    analysis.get("f'(сер)", 'N/A')
                 ]
                 
-                for cell in cells:
-                    pdf.drawString(x_pos + 3, y_position - 15, str(cell))
-                    x_pos += 80
+                if "f'(сер)" not in analysis:
+                    if "f'(середнє)" in analysis:
+                        cells[6] = analysis["f'(середнє)"]
+                    elif "f'(сер)" in analysis:
+                        cells[6] = analysis["f'(сер)"]
+                
+                for j, cell in enumerate(cells):
+                    pdf.drawString(x_pos + 3, y_position - 15, cell)
+                    x_pos += col_widths[j]
                 
                 y_position -= row_height
                 if y_position < 100:
                     pdf.showPage()
                     pdf.setFont(font_name, 12)
                     y_position = 490
+                    pdf.setFillColorRGB(0.8, 1.0, 0.8)
+                    pdf.rect(100, y_position - row_height, sum(col_widths), row_height, fill=1)
+                    pdf.setFillColorRGB(0, 0, 0)
+                    x_pos = 100
+                    for k, header in enumerate(headers):
+                        pdf.drawString(x_pos + 3, y_position - 15, header)
+                        x_pos += col_widths[k]
+                    y_position -= row_height
             
             y_position -= 25
         
@@ -319,55 +351,46 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
         ]
         
         for conclusion in conclusions:
-            if y_position < 50:
-                pdf.showPage()
-                pdf.setFont(font_name, 12)
-                y_position = 490
-            
             if conclusion.startswith("•") or conclusion.startswith("  -"):
                 pdf.drawString(120, y_position, conclusion)
             else:
                 pdf.drawString(100, y_position, conclusion)
             y_position -= 15
+            
+            if y_position < 50:
+                pdf.showPage()
+                pdf.setFont(font_name, 12)
+                y_position = 490
         
-        # Графіки
+        # Додавання інформації про графіки (без самих зображень)
         if saved_plots:
             pdf.showPage()
             pdf.setFont(font_name, 16)
-            pdf.drawString(100, 520, "ГРАФІКИ РЕЗУЛЬТАТІВ")
+            pdf.drawString(100, 520, "ІНФОРМАЦІЯ ПРО ЗБЕРЕЖЕНІ ГРАФІКИ")
+            pdf.setFont(font_name, 12)
+            y_position = 490
+            
+            pdf.drawString(100, y_position, f"Кількість збережених графіків: {len(saved_plots)}")
+            y_position -= 30
             
             for i, plot_data in enumerate(saved_plots):
-                plot_path = save_plot_to_image(plot_data, f"plot_{i}")
+                pdf.drawString(100, y_position, f"Графік {i+1}:")
+                y_position -= 20
+                pdf.drawString(120, y_position, f"- Стан: {plot_data['state']}")
+                y_position -= 20
+                pdf.drawString(120, y_position, f"- Температура: {plot_data['temperature']} K")
+                y_position -= 20
+                pdf.drawString(120, y_position, f"- Тип поля: {plot_data['field_type']}")
+                y_position -= 20
+                pdf.drawString(120, y_position, f"- E₀: {plot_data['E0']} В/м")
+                y_position -= 20
+                pdf.drawString(120, y_position, f"- j₀: {plot_data['j0']} А/м²")
+                y_position -= 30
                 
-                if plot_path and os.path.exists(plot_path):
-                    pdf.setFont(font_name, 14)
-                    
-                    if plot_data['state'] == 'Надпровідник':
-                        title = f"Графік {i+1}: Надпровідник при T={plot_data['temperature']}K"
-                    elif plot_data['state'] == 'Звичайний метал':
-                        title = f"Графік {i+1}: Звичайний метал при T={plot_data['temperature']}K"
-                    else:
-                        title = f"Графік {i+1}: Порівняння станів при T={plot_data['temperature']}K"
-                    
-                    pdf.drawString(100, 490, title)
-                    
-                    try:
-                        img = ImageReader(plot_path)
-                        pdf.drawImage(img, 50, 150, width=700, height=400, preserveAspectRatio=True)
-                    except Exception as e:
-                        pdf.drawString(100, 470, f"Помилка завантаження зображення")
-                    
-                    pdf.setFont(font_name, 10)
-                    description = f"Тип поля: {plot_data['field_type']}, E₀={plot_data['E0']} В/м"
-                    pdf.drawString(100, 140, description)
-                    
-                    try:
-                        os.remove(plot_path)
-                    except:
-                        pass
-                    
-                    if i < len(saved_plots) - 1:
-                        pdf.showPage()
+                if y_position < 100:
+                    pdf.showPage()
+                    pdf.setFont(font_name, 12)
+                    y_position = 490
         
         pdf.save()
         buffer.seek(0)
@@ -376,7 +399,8 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
     except Exception as e:
         print(f"Помилка при створенні PDF: {e}")
         buffer = BytesIO()
-        report_text = "ЗВІТ З МОДЕЛЮВАННЯ СТРУМУ В НІОБІЇ\n\nПараметри моделювання:\n"
+        report_text = "ЗВІТ З МОДЕЛЮВАННЯ СТРУМУ В НІОБІЇ\n\n"
+        report_text += "Параметри моделювання:\n"
         for key, value in input_data.items():
             report_text += f"{key}: {value}\n"
         buffer.write(report_text.encode('utf-8'))

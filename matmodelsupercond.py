@@ -7,6 +7,10 @@ from scipy.signal import find_peaks
 import tempfile
 import os
 from reportlab.lib.utils import ImageReader
+import tempfile
+import os
+import base64
+from reportlab.lib.utils import ImageReader
 
 # ФІЗИЧНІ КОНСТАНТИ ДЛЯ НІОБІЮ
 e = 1.602e-19  # Кл
@@ -133,7 +137,7 @@ def analyze_mathematical_characteristics(t, j_data, state_name, field_type, omeg
     
     return analysis
 
-def save_current_plot_as_image(fig, filename_prefix="plot"):
+def save_plot_to_image(fig, filename_prefix="plot"):
     """Збереження графіка Plotly як зображення для PDF"""
     try:
         # Створюємо тимчасовий файл
@@ -141,12 +145,20 @@ def save_current_plot_as_image(fig, filename_prefix="plot"):
         filepath = os.path.join(temp_dir, f"{filename_prefix}_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.png")
         
         # Зберігаємо графік як PNG
-        fig.write_image(filepath, width=800, height=600, scale=2)
+        fig.write_image(filepath, width=800, height=500, scale=2)
         return filepath
     except Exception as e:
         print(f"Помилка збереження графіка: {e}")
-        return None
-
+        # Альтернативний спосіб через base64
+        try:
+            img_bytes = fig.to_image(format="png", width=800, height=500, scale=2)
+            filepath = os.path.join(tempfile.gettempdir(), f"{filename_prefix}_temp.png")
+            with open(filepath, "wb") as f:
+                f.write(img_bytes)
+            return filepath
+        except:
+            return None
+            
 def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots):
     """Створення PDF звіту з графіками"""
     try:
@@ -248,7 +260,7 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
             
             y_position -= 25
 
-        # Математичний аналіз - ВИПРАВЛЕНО ДЛЯ ПОХІДНИХ
+        # Математичний аналіз
         if math_analyses:
             pdf.drawString(100, y_position, "Математичний аналіз:")
             y_position -= 25
@@ -279,18 +291,16 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
                 
                 x_pos = 100
                 
-                # ВИПРАВЛЕННЯ: правильні ключі для похідних
                 cells = [
                     analysis.get('Функція', ''),
                     analysis.get('Тип функції', ''),
                     analysis.get('f(0)', ''),
                     analysis.get('max f(t)', ''),
-                    analysis.get("f'(max)", 'N/A'),  # Максимальна похідна
-                    analysis.get("f'(min)", 'N/A'),  # Мінімальна похідна
-                    analysis.get("f'(сер)", 'N/A')   # Середня похідна - ТЕПЕР ПРАВИЛЬНИЙ КЛЮЧ
+                    analysis.get("f'(max)", 'N/A'),
+                    analysis.get("f'(min)", 'N/A'),
+                    analysis.get("f'(сер)", 'N/A')
                 ]
                 
-                # Додаткова перевірка - якщо немає середньої похідної, шукаємо альтернативні ключі
                 if "f'(сер)" not in analysis:
                     if "f'(середнє)" in analysis:
                         cells[6] = analysis["f'(середнє)"]
@@ -387,13 +397,14 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
                         title=title,
                         xaxis_title="Час (с)",
                         yaxis_title="Густина струму (А/м²)",
-                        height=600,
-                        showlegend=True
+                        height=500,
+                        showlegend=True,
+                        font=dict(size=12)
                     )
                     fig_pdf.update_yaxes(tickformat=".2e")
                     
                     # Зберігаємо графік як зображення
-                    plot_path = save_current_plot_as_image(fig_pdf, f"plot_{i}")
+                    plot_path = save_plot_to_image(fig_pdf, f"plot_{i}")
                     
                     if plot_path and os.path.exists(plot_path):
                         # Додаємо заголовок для графіка
@@ -418,6 +429,7 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
                         # Якщо це не останній графік, створюємо нову сторінку
                         if i < len(saved_plots) - 1:
                             pdf.showPage()
+                            pdf.setFont(font_name, 12)
                             
                 except Exception as e:
                     print(f"Помилка при додаванні графіка {i}: {e}")

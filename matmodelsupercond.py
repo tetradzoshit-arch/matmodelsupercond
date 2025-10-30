@@ -438,16 +438,20 @@ def main():
                     plot_data['state'] = 'Порівняння'
                     plot_data['model'] = 'Друде'
                 
-                else:  # Режим "Кілька графіків" - зберігаємо тільки один стан
-                    auto_state = determine_state(current_temp)
-                    if auto_state == "Надпровідник":
-                        plot_data['j_data'] = calculate_superconducting_current(plot_data['t'], field_type, E0, a, omega, j0, current_temp)
-                        plot_data['state'] = 'Надпровідник'
-                        plot_data['model'] = 'Лондони'
-                    else:
-                        plot_data['j_data'] = calculate_normal_current_drude(plot_data['t'], field_type, current_temp, E0, a, omega, j0)
-                        plot_data['state'] = 'Звичайний метал'
-                        plot_data['model'] = 'Друде'
+                           else:  # Режим "Кілька графіків" - показуємо вибір одного стану
+                st.subheader("Оберіть стан для відображення:")
+                display_state = st.radio("Стан:", ["Надпровідник", "Звичайний метал"], horizontal=True)
+                
+                if display_state == "Надпровідник":
+                    j_data = calculate_superconducting_current(t, field_type, E0, a, omega, j0, current_temp)
+                    fig.add_trace(go.Scatter(x=t, y=j_data, name='Надпровідник', line=dict(color='red', width=3)))
+                    physical_analyses = [analyze_physical_characteristics(t, j_data, "Надпровідник", field_type, current_temp, omega)]
+                    math_analyses = [analyze_mathematical_characteristics(t, j_data, "Надпровідник", field_type, omega)]
+                else:
+                    j_data = calculate_normal_current_drude(t, field_type, current_temp, E0, a, omega, j0)
+                    fig.add_trace(go.Scatter(x=t, y=j_data, name='Звичайний метал', line=dict(color='blue', width=3)))
+                    physical_analyses = [analyze_physical_characteristics(t, j_data, "Звичайний метал", field_type, current_temp, omega)]
+                    math_analyses = [analyze_mathematical_characteristics(t, j_data, "Звичайний метал", field_type, omega)]
                 
                 st.session_state.saved_plots.append(plot_data)
                 st.success(f"Графік збережено! Всього збережено: {len(st.session_state.saved_plots)}")

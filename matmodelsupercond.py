@@ -223,72 +223,85 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
             y_position -= 25
 
         # Математичний аналіз
-        if math_analyses:
-            pdf.drawString(100, y_position, "Математичний аналіз:")
-            y_position -= 25
-            
-            col_widths = [100, 100, 80, 80, 80, 80, 80]
-            row_height = 20
-            
+        # В функції створення PDF звіту знайдіть цей блок та замініть його:
+
+# Математичний аналіз
+if math_analyses:
+    pdf.drawString(100, y_position, "Математичний аналіз:")
+    y_position -= 25
+    
+    col_widths = [100, 100, 80, 80, 80, 80, 80]
+    row_height = 20
+    
+    pdf.setFillColorRGB(0.8, 1.0, 0.8)
+    pdf.rect(100, y_position - row_height, sum(col_widths), row_height, fill=1)
+    pdf.setFillColorRGB(0, 0, 0)
+    
+    headers = ["Функція", "Тип функції", "f(0)", "max f(t)", "f'(max)", "f'(min)", "f'(сер)"]
+    x_pos = 100
+    for i, header in enumerate(headers):
+        pdf.drawString(x_pos + 3, y_position - 15, header)
+        x_pos += col_widths[i]
+    
+    y_position -= row_height
+    
+    for i, analysis in enumerate(math_analyses):
+        if i % 2 == 0:
+            pdf.setFillColorRGB(0.95, 1.0, 0.95)
+        else:
+            pdf.setFillColorRGB(1, 1, 1)
+        
+        pdf.rect(100, y_position - row_height, sum(col_widths), row_height, fill=1)
+        pdf.setFillColorRGB(0, 0, 0)
+        
+        x_pos = 100
+        
+        cells = [
+            analysis.get('Функція', ''),
+            analysis.get('Тип функції', ''),
+            analysis.get('f(0)', ''),
+            analysis.get('max f(t)', ''),
+            analysis.get("f'(max)", 'N/A'),
+            analysis.get("f'(min)", 'N/A'),
+            analysis.get("f'(сер)", 'N/A')
+        ]
+        
+        # Виправлення для різних назв ключів
+        if "f'(max)" not in analysis:
+            if "f'(max)" in analysis:
+                cells[4] = analysis["f'(max)"]
+            elif "Макс. швидкість" in analysis:
+                cells[4] = analysis["Макс. швидкість"]
+        
+        if "f'(min)" not in analysis:
+            if "f'(min)" in analysis:
+                cells[5] = analysis["f'(min)"]
+        
+        if "f'(сер)" not in analysis:
+            if "f'(середнє)" in analysis:
+                cells[6] = analysis["f'(середнє)"]
+            elif "f'(сер)" in analysis:
+                cells[6] = analysis["f'(сер)"]
+        
+        for j, cell in enumerate(cells):
+            pdf.drawString(x_pos + 3, y_position - 15, str(cell))
+            x_pos += col_widths[j]
+        
+        y_position -= row_height
+        if y_position < 100:
+            pdf.showPage()
+            pdf.setFont(font_name, 12)
+            y_position = 490
             pdf.setFillColorRGB(0.8, 1.0, 0.8)
             pdf.rect(100, y_position - row_height, sum(col_widths), row_height, fill=1)
             pdf.setFillColorRGB(0, 0, 0)
-            
-            headers = ["Функція", "Тип функції", "f(0)", "max f(t)", "f'(max)", "f'(min)", "f'(сер)"]
             x_pos = 100
-            for i, header in enumerate(headers):
+            for k, header in enumerate(headers):
                 pdf.drawString(x_pos + 3, y_position - 15, header)
-                x_pos += col_widths[i]
-            
+                x_pos += col_widths[k]
             y_position -= row_height
-            
-            for i, analysis in enumerate(math_analyses):
-                if i % 2 == 0:
-                    pdf.setFillColorRGB(0.95, 1.0, 0.95)
-                else:
-                    pdf.setFillColorRGB(1, 1, 1)
-                
-                pdf.rect(100, y_position - row_height, sum(col_widths), row_height, fill=1)
-                pdf.setFillColorRGB(0, 0, 0)
-                
-                x_pos = 100
-                
-                cells = [
-                    analysis.get('Функція', ''),
-                    analysis.get('Тип функції', ''),
-                    analysis.get('f(0)', ''),
-                    analysis.get('max f(t)', ''),
-                    analysis.get("f'(max)", 'N/A'),
-                    analysis.get("f'(min)", 'N/A'),
-                    analysis.get("f'(сер)", 'N/A')
-                ]
-                
-                if "f'(сер)" not in analysis:
-                    if "f'(середнє)" in analysis:
-                        cells[6] = analysis["f'(середнє)"]
-                    elif "f'(сер)" in analysis:
-                        cells[6] = analysis["f'(сер)"]
-                
-                for j, cell in enumerate(cells):
-                    pdf.drawString(x_pos + 3, y_position - 15, cell)
-                    x_pos += col_widths[j]
-                
-                y_position -= row_height
-                if y_position < 100:
-                    pdf.showPage()
-                    pdf.setFont(font_name, 12)
-                    y_position = 490
-                    pdf.setFillColorRGB(0.8, 1.0, 0.8)
-                    pdf.rect(100, y_position - row_height, sum(col_widths), row_height, fill=1)
-                    pdf.setFillColorRGB(0, 0, 0)
-                    x_pos = 100
-                    for k, header in enumerate(headers):
-                        pdf.drawString(x_pos + 3, y_position - 15, header)
-                        x_pos += col_widths[k]
-                    y_position -= row_height
-            
-            y_position -= 25
-        
+    
+    y_position -= 25
         # Висновки
         pdf.drawString(100, y_position, "Висновки та аналіз результатів:")
         y_position -= 25

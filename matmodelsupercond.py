@@ -21,7 +21,7 @@ n0 = 2.8e28  # м⁻³
 tau_imp = 2.0e-12  # с
 
 def determine_state(T):
-    return "Надпровідник" if T < Tc else "Звичайний метал"
+    return "Надпровідник" if T < Tc else "Звичайний стан"
 
 def tau_temperature_dependence(T):
     return tau_imp * (1 + (T / Tc)**3) if T < Tc else tau_imp * (T / Tc)
@@ -299,7 +299,7 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
             "• Надпровідник демонструє принципово іншу динаміку струму:",
             "  - Струм необмежено зростає з часом через відсутність опору",
             "",
-            "• Звичайний метал має властивості насичення:",
+            "• Звичайний стан має властивості насичення:",
             "  - Струм досягає стаціонарного значення через опір", 
             "  - Час релаксації впливає на швидкість встановлення струму",
             "",
@@ -370,9 +370,6 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
         return buffer
 
 # =============================================================================
-# НОВІ СТОРІНКИ (ДОДАТКОВІ)
-# =============================================================================
-# =============================================================================
 # СТОРІНКА АНІМАЦІЙ
 # =============================================================================
 
@@ -409,7 +406,7 @@ def animations_page():
                 progress = int((i / len(temps)) * 100)
                 progress_bar.progress(progress)
                 
-                state = "Надпровідник" if temp < Tc else "Метал"
+                state = "Надпровідник" if temp < Tc else "Звичайний стан"
                 status_text.text(f"Температура: {temp:.1f} K | Стан: {state}")
                 
                 t_anim = np.linspace(0, anim_t_max, 150)
@@ -419,7 +416,7 @@ def animations_page():
                 fig_anim = go.Figure()
                 fig_anim.add_trace(go.Scatter(x=t_anim, y=j_super, name='Надпровідник', 
                                             line=dict(color='red', width=3)))
-                fig_anim.add_trace(go.Scatter(x=t_anim, y=j_normal, name='Метал', 
+                fig_anim.add_trace(go.Scatter(x=t_anim, y=j_normal, name='Звичайний стан', 
                                             line=dict(color='blue', width=3)))
                 
                 fig_anim.update_layout(
@@ -453,7 +450,7 @@ def animations_page():
                 progress = int((i / len(transition_temps)) * 100)
                 progress_bar2.progress(progress)
                 
-                state = "Надпровідник" if T_trans < Tc else "Метал"
+                state = "Надпровідник" if T_trans < Tc else "Звичайний стан"
                 status_text2.text(f"T = {T_trans:.2f} K | Стан: {state}")
                 
                 t_trans = np.linspace(0, min(anim_t_max, 3.0), 100)
@@ -512,10 +509,10 @@ def animations_page():
                                             name=f'Надпровідник - {field_type}',
                                             line=dict(color=colors[i], width=3, dash='solid')))
                 
-                # Метал
+                # Звичайний стан
                 j_normal = calculate_normal_current_drude(t_comp, field_type, temp_comparison, anim_E0, 1.0, 5.0, 0.0)
                 fig_comp.add_trace(go.Scatter(x=t_comp, y=j_normal, 
-                                            name=f'Метал - {field_type}',
+                                            name=f'Звичайний стан - {field_type}',
                                             line=dict(color=colors[i], width=3, dash='dot')))
                 
                 fig_comp.update_layout(
@@ -535,12 +532,9 @@ def animations_page():
 # =============================================================================
 # СТОРІНКА ГОНОК
 # =============================================================================
-# =============================================================================
-# СТОРІНКА ГОНОК
-# =============================================================================
 
 def racing_page():
-    st.header("🏎️ Електронні Гонки - Надпровідник vs Метал")
+    st.header("🏎️ Електронні Гонки - Надпровідник vs Звичайний стан")
     
     # Ініціалізація стану гонки
     if 'race_started' not in st.session_state:
@@ -561,12 +555,12 @@ def racing_page():
         col_car1, col_car2 = st.columns(2)
         with col_car1:
             car1_temp = st.slider("Температура машинки 1 (K)", 1.0, 18.0, 4.2, 0.1, key="car1_temp")
-            car1_type = "Надпровідник" if car1_temp < Tc else "Метал"
+            car1_type = "Надпровідник" if car1_temp < Tc else "Звичайний стан"
             st.info(f"**Машинка 1:** {car1_type}")
             
         with col_car2:
             car2_temp = st.slider("Температура машинки 2 (K)", 1.0, 18.0, 12.0, 0.1, key="car2_temp")
-            car2_type = "Надпровідник" if car2_temp < Tc else "Метал"
+            car2_type = "Надпровідник" if car2_temp < Tc else "Звичайний стан"
             st.info(f"**Машинка 2:** {car2_type}")
         
         # Загальні параметри
@@ -585,7 +579,7 @@ def racing_page():
                 # Нормалізуємо до повільного старту і прискорення
                 progress_car1 = 0.1 * t_race + 0.05 * t_race**2
             else:
-                # Для металу - модель Друде з насиченням
+                # Для звичайного стану - модель Друде з насиченням
                 tau = 2.0  # Час релаксації
                 j_max = race_E0 * tau  # Максимальний струм
                 j_car1 = j_max * (1 - np.exp(-t_race / tau))
@@ -596,7 +590,7 @@ def racing_page():
                 j_car2 = race_E0 * t_race
                 progress_car2 = 0.1 * t_race + 0.05 * t_race**2
             else:
-                # Для металу - модель Друде з насиченням
+                # Для звичайного стану - модель Друде з насиченням
                 tau = 2.0  # Час релаксації
                 j_max = race_E0 * tau  # Максимальний струм
                 j_car2 = j_max * (1 - np.exp(-t_race / tau))
@@ -710,8 +704,8 @@ def racing_page():
             
             # Траса машинки 2
             car2_pos = int(progress_car2 * track_length / 100)
-            # Додаємо перешкоди тільки для металу
-            obstacles = "🚧" * ((frame // 3) % 2) if data['car2_type'] == "Метал" else ""
+            # Додаємо перешкоди тільки для звичайного стану
+            obstacles = "🚧" * ((frame // 3) % 2) if data['car2_type'] == "Звичайний стан" else ""
             track2_display = "🏁" + "─" * car2_pos + "🚗" + "·" * (track_length - car2_pos) + " " + obstacles
             st.code(track2_display)
             st.write(f"**Швидкість:** {speed_car2:.2e} А/м²")
@@ -760,10 +754,10 @@ def racing_page():
             
             # Аналіз результатів
             st.subheader("📈 Аналіз гонки")
-            if data['car1_type'] == "Надпровідник" and data['car2_type'] == "Метал":
+            if data['car1_type'] == "Надпровідник" and data['car2_type'] == "Звичайний стан":
                 st.success("**Фізика підтверджується!** Надпровідник показав кращий результат через відсутність опору!")
-            elif data['car1_type'] == "Метал" and data['car2_type'] == "Надпровідник":
-                st.success("**Фізика підтверджується!** Надпровідник обігнав метал через нульовий опір!")
+            elif data['car1_type'] == "Звичайний стан" and data['car2_type'] == "Надпровідник":
+                st.success("**Фізика підтверджується!** Надпровідник обігнав звичайний стан через нульовий опір!")
             else:
                 st.info("**Цікавий результат!** Обидві машинки одного типу - порівнюй температури!")
             
@@ -782,7 +776,7 @@ def racing_page():
         - Постійне прискорення
         - Може досягти 100% прогресу
         
-        **🚗 Метал (T ≥ 9.2K):**
+        **🚗 Звичайний стан (T ≥ 9.2K):**
         - 🐌 **ЗВИЧАЙНА ШВИДКІСТЬ** - є опір!
         - Швидке насичення (до 80%)
         - Повільний старт через опір
@@ -800,11 +794,11 @@ def generate_game_problem(difficulty):
     problems = {
         "easy": [
             {"field": "Статичне", "T": 4.2, "E0": 1.0, "hint": "Надпровідник при низькій температурі"},
-            {"field": "Статичне", "T": 12.0, "E0": 1.0, "hint": "Метал при високій температурі"}
+            {"field": "Статичне", "T": 12.0, "E0": 1.0, "hint": "Звичайний стан при високій температурі"}
         ],
         "medium": [
             {"field": "Лінійне", "T": 4.2, "E0": 0.5, "hint": "Надпровідник з лінійним полем"},
-            {"field": "Синусоїдальне", "T": 12.0, "E0": 2.0, "hint": "Метал зі змінним полем"}
+            {"field": "Синусоїдальне", "T": 12.0, "E0": 2.0, "hint": "Звичайний стан зі змінним полем"}
         ],
         "hard": [
             {"field": random.choice(["Статичне", "Лінійне", "Синусоїдальне"]), 
@@ -835,7 +829,7 @@ def generate_game_problem(difficulty):
     else:
         j_known = calculate_normal_current_drude(t_known, problem["field"], problem["T"], problem["E0"], 1.0, 5.0, 0.0)
         j_full = calculate_normal_current_drude(t_full, problem["field"], problem["T"], problem["E0"], 1.0, 5.0, 0.0)
-        material_type = "metal"
+        material_type = "normal"
     
     return {
         "t_known": t_known,
@@ -846,6 +840,7 @@ def generate_game_problem(difficulty):
         "params": problem,
         "hint": problem["hint"]
     }
+
 def prediction_game_page():
     st.header("🔮 Передбач майбутнє провідника!")
     
@@ -873,7 +868,7 @@ def prediction_game_page():
         
         # Параметри задачі
         game_mode = st.selectbox("Рівень складності:", [
-            "Простий - явний надпровідник чи метал",
+            "Простий - явний надпровідник чи звичайний стан",
             "Середній - складне поле", 
             "Складний - випадкові параметри"
         ], key="game_mode")
@@ -941,7 +936,7 @@ def prediction_game_page():
             
             drawing_type = st.radio("Як буде розвиватися графік?", [
                 "Нескінченне зростання (надпровідник)",
-                "Насичення (метал)", 
+                "Насичення (звичайний стан)", 
                 "Коливання",
                 "Інше"
             ], key="draw_type")
@@ -954,7 +949,7 @@ def prediction_game_page():
                 t_pred = np.linspace(2.5, 5, 50)
                 if drawing_type == "Нескінченне зростання (надпровідник)":
                     j_pred = data["j_known"][-1] + np.linspace(0, abs(data["j_known"][-1]) * 3, 50)
-                elif drawing_type == "Насичення (метал)":
+                elif drawing_type == "Насичення (звичайний стан)":
                     j_pred = np.full(50, data["j_known"][-1] * 0.9)
                 elif drawing_type == "Коливання":
                     j_pred = data["j_known"][-1] + np.sin(np.linspace(0, 4*np.pi, 50)) * abs(data["j_known"][-1]) * 0.5
@@ -967,11 +962,11 @@ def prediction_game_page():
             # Оцінка результату
             if st.session_state.show_solution and st.session_state.user_choice:
                 user_choice = st.session_state.user_choice
-                real_type = "Надпровідник" if data["material_type"] == "super" else "Метал"
+                real_type = "Надпровідник" if data["material_type"] == "super" else "Звичайний стан"
                 
                 # Проста оцінка
                 if ("надпровідник" in user_choice.lower() and real_type == "Надпровідник") or \
-                   ("метал" in user_choice.lower() and real_type == "Метал"):
+                   ("звичайний" in user_choice.lower() and real_type == "Звичайний стан"):
                     accuracy = random.randint(85, 98)
                     st.success("🎉 Відмінно! Ти правильно зрозумів фізику!")
                 else:
@@ -996,7 +991,7 @@ def prediction_game_page():
         - Немає насичення
         - Для синусоїдального поля - чисті коливання
         
-        **Метал (T ≥ 9.2K):**
+        **Звичайний стан (T ≥ 9.2K):**
         - Насичення струму  
         - Стаціонарне значення
         - Для синусоїдального поля - затухаючі коливання
@@ -1049,7 +1044,7 @@ def main_page():
             current_temp = T_input
             auto_state = determine_state(T_input)
             st.info(f"🔍 Автоматичне визначення: {auto_state}")
-            metal_model = st.radio("Модель для металу:", 
+            metal_model = st.radio("Модель для звичайного стану:", 
                 ["Модель Друде (з перехідним процесом)", "Закон Ома (стаціонарний)"])
         else:
             T_multi = st.slider("Температура (K)", 0.1, 18.4, 4.2, 0.1)
@@ -1075,7 +1070,7 @@ def main_page():
                     else:
                         calc_func = calculate_normal_current_drude if metal_model == "Модель Друде (з перехідним процесом)" else calculate_normal_current_ohm
                         plot_data['j_data'] = calc_func(plot_data['t'], field_type, current_temp, E0, a, omega, j0)
-                        plot_data['state'] = 'Звичайний метал'
+                        plot_data['state'] = 'Звичайний стан'
                         plot_data['model'] = metal_model
                 
                 elif comparison_mode == "Порівняння":
@@ -1110,10 +1105,10 @@ def main_page():
                             name=f"Надпровідник {i+1} (T={plot_data['temperature']}K)",
                             line=dict(width=2), opacity=0.7
                         ))
-                    elif plot_data['state'] == 'Звичайний метал':
+                    elif plot_data['state'] == 'Звичайний стан':
                         fig_saved.add_trace(go.Scatter(
                             x=plot_data['t'], y=plot_data['j_data'],
-                            name=f"Метал {i+1} (T={plot_data['temperature']}K, {plot_data['model']})",
+                            name=f"Звичайний стан {i+1} (T={plot_data['temperature']}K, {plot_data['model']})",
                             line=dict(width=2), opacity=0.7
                         ))
                     elif plot_data['state'] == 'Порівняння':
@@ -1123,7 +1118,7 @@ def main_page():
                         ))
                         fig_saved.add_trace(go.Scatter(
                             x=plot_data['t'], y=plot_data['j_normal'], 
-                            name=f"Метал {i+1}", line=dict(width=2), opacity=0.7
+                            name=f"Звичайний стан {i+1}", line=dict(width=2), opacity=0.7
                         ))
                 
                 fig_saved.update_layout(
@@ -1149,15 +1144,15 @@ def main_page():
                 j_normal = calculate_normal_current_drude(t, field_type, T_common, E0, a, omega, j0)
                 
                 fig.add_trace(go.Scatter(x=t, y=j_super, name='Надпровідник', line=dict(color='red', width=3)))
-                fig.add_trace(go.Scatter(x=t, y=j_normal, name='Звичайний метал (Друде)', line=dict(color='blue', width=3)))
+                fig.add_trace(go.Scatter(x=t, y=j_normal, name='Звичайний стан (Друде)', line=dict(color='blue', width=3)))
                 
                 physical_analyses = [
                     analyze_physical_characteristics(t, j_super, "Надпровідник", field_type, T_common, omega),
-                    analyze_physical_characteristics(t, j_normal, "Звичайний метал", field_type, T_common, omega)
+                    analyze_physical_characteristics(t, j_normal, "Звичайний стан", field_type, T_common, omega)
                 ]
                 math_analyses = [
                     analyze_mathematical_characteristics(t, j_super, "Надпровідник", field_type, omega),
-                    analyze_mathematical_characteristics(t, j_normal, "Звичайний метал", field_type, omega)
+                    analyze_mathematical_characteristics(t, j_normal, "Звичайний стан", field_type, omega)
                 ]
                 
             elif comparison_mode == "Один стан":
@@ -1170,11 +1165,11 @@ def main_page():
                 else:
                     calc_func = calculate_normal_current_drude if metal_model == "Модель Друде (з перехідним процесом)" else calculate_normal_current_ohm
                     j_data = calc_func(t, field_type, current_temp, E0, a, omega, j0)
-                    model_name = "Звичайний метал (Друде)" if metal_model == "Модель Друде (з перехідним процесом)" else "Звичайний метал (Ом)"
+                    model_name = "Звичайний стан (Друде)" if metal_model == "Модель Друде (з перехідним процесом)" else "Звичайний стан (Ом)"
                     
                     fig.add_trace(go.Scatter(x=t, y=j_data, name=model_name, line=dict(color='blue', width=3)))
-                    physical_analyses = [analyze_physical_characteristics(t, j_data, "Звичайний метал", field_type, current_temp, omega)]
-                    math_analyses = [analyze_mathematical_characteristics(t, j_data, "Звичайний метал", field_type, omega)]
+                    physical_analyses = [analyze_physical_characteristics(t, j_data, "Звичайний стан", field_type, current_temp, omega)]
+                    math_analyses = [analyze_mathematical_characteristics(t, j_data, "Звичайний стан", field_type, omega)]
             
             fig.update_layout(
                 title="Динаміка густини струму в ніобії",
@@ -1196,7 +1191,7 @@ def main_page():
                         st.write("**Надпровідник:**")
                         st.dataframe(pd.DataFrame([math_analyses[0]]).T.rename(columns={0: 'Значення'}), use_container_width=True, height=300)
                     with col_math2:
-                        st.write("**Звичайний метал:**")
+                        st.write("**Звичайний стан:**")
                         st.dataframe(pd.DataFrame([math_analyses[1]]).T.rename(columns={0: 'Значення'}), use_container_width=True, height=300)
                 else:
                     st.dataframe(pd.DataFrame([math_analyses[0]]).T.rename(columns={0: 'Значення'}), use_container_width=True, height=300)
@@ -1214,7 +1209,7 @@ def main_page():
         if current_state == "Надпровідник":
             st.success("✅ Надпровідний стан (T < T_c)")
         else:
-            st.warning("⚠️ Звичайний метал (T ≥ T_c)")
+            st.warning("⚠️ Звичайний стан (T ≥ T_c)")
         
         st.write(f"**Критична температура T_c:** {Tc} K")
 
@@ -1238,11 +1233,11 @@ def main_page():
                 j_normal = calculate_normal_current_drude(t, field_type, T_common, E0, a, omega, j0)
                 physical_analyses_for_report = [
                     analyze_physical_characteristics(t, j_super, "Надпровідник", field_type, T_common, omega),
-                    analyze_physical_characteristics(t, j_normal, "Звичайний метал", field_type, T_common, omega)
+                    analyze_physical_characteristics(t, j_normal, "Звичайний стан", field_type, T_common, omega)
                 ]
                 math_analyses_for_report = [
                     analyze_mathematical_characteristics(t, j_super, "Надпровідник", field_type, omega),
-                    analyze_mathematical_characteristics(t, j_normal, "Звичайний метал", field_type, omega)
+                    analyze_mathematical_characteristics(t, j_normal, "Звичайний стан", field_type, omega)
                 ]
             elif comparison_mode == "Один стан":
                 auto_state = determine_state(current_temp)
@@ -1253,8 +1248,8 @@ def main_page():
                 else:
                     calc_func = calculate_normal_current_drude if metal_model == "Модель Друде (з перехідним процесом)" else calculate_normal_current_ohm
                     j_data = calc_func(t, field_type, current_temp, E0, a, omega, j0)
-                    physical_analyses_for_report = [analyze_physical_characteristics(t, j_data, "Звичайний метал", field_type, current_temp, omega)]
-                    math_analyses_for_report = [analyze_mathematical_characteristics(t, j_data, "Звичайний метал", field_type, omega)]
+                    physical_analyses_for_report = [analyze_physical_characteristics(t, j_data, "Звичайний стан", field_type, current_temp, omega)]
+                    math_analyses_for_report = [analyze_mathematical_characteristics(t, j_data, "Звичайний стан", field_type, omega)]
             
             pdf_buffer = create_pdf_report(input_data, physical_analyses_for_report, math_analyses_for_report, st.session_state.saved_plots)
             st.download_button(
@@ -1288,7 +1283,7 @@ def main_page():
         - Рівняння Лондонів: струм росте необмеженно лінійно/квадратично через відсутність опору
         - Критична температура для ніобію: **Tₐ = 9.2 K**
         
-        **Звичайний метал (T ≥ Tₐ):**
+        **Звичайний стан (T ≥ Tₐ):**
         - Модель Друде: експоненційне насичення струму через опір
         - Закон Ома: стаціонарна поведінка струму
         - Час релаксації залежить від температури

@@ -506,7 +506,7 @@ def run_field_comparison_animation():
         progress_bar.progress(100)
         st.success("✅ Порівняння завершено!")
 # =============================================================================
-# ІНТЕРАКТИВНІ ГОНКИ
+# ЕЛЕКТРОННІГОНКИ
 # =============================================================================
 def racing_page():
     st.header("🏎️ Електронні Гонки - Надпровідник vs Метал")
@@ -524,10 +524,10 @@ def racing_page():
         race_temp = st.slider("Температура (K)", 1.0, 18.0, 4.2, 0.1, key="race_temp")
         race_field = st.selectbox("Тип поля:", ["Статичне", "Лінійне", "Синусоїдальне"], key="race_field")
         race_E0 = st.slider("Потужність поля E₀", 0.1, 10.0, 1.0, 0.1, key="race_E0")
+        race_speed = st.slider("Швидкість анімації", 0.1, 2.0, 0.5, 0.1, key="race_speed")
         
         if st.button("🎮 Старт гонки!", use_container_width=True):
             st.session_state.race_started = True
-            st.session_state.race_time = 0
     
     with col2:
         st.subheader("📊 Стан системи")
@@ -543,77 +543,63 @@ def racing_page():
     if 'race_started' in st.session_state and st.session_state.race_started:
         st.subheader("🏁 ГОНКА ТРИВАЄ!")
         
-        # Создаем две колонки для трасс
-        race_col1, race_col2 = st.columns(2)
+        # Создаем место для анимации
+        animation_placeholder = st.empty()
+        progress_placeholder = st.empty()
+        status_placeholder = st.empty()
         
-        with race_col1:
-            st.markdown("### 🏎️ НАДПРОВІДНИК")
-            st.markdown("**Супер-шосе без опору!** 🛣️")
+        # Расчет данных для гонки
+        t_race = np.linspace(0, 5, 50)
+        j_super = calculate_superconducting_current(t_race, race_field, race_E0, 1.0, 5.0, 0.0, race_temp)
+        j_metal = calculate_normal_current_drude(t_race, race_field, race_temp, race_E0, 1.0, 5.0, 0.0)
+        
+        # Анимация
+        for i in range(len(t_race)):
+            progress_super = int((i / len(t_race)) * 100)
+            progress_metal = int((i / len(t_race)) * 85)  # Метал никогда не достигает 100%
             
-            # Анимация гоночной трассы
-            progress_super = st.progress(0)
-            status_super = st.empty()
+            speed_super = abs(j_super[i]) if i < len(j_super) else abs(j_super[-1])
+            speed_metal = abs(j_metal[i]) if i < len(j_metal) else abs(j_metal[-1])
             
-            # Расчет скорости для сверхпроводника
-            t_race = np.linspace(0, 5, 50)
-            j_super = calculate_superconducting_current(t_race, race_field, race_E0, 1.0, 5.0, 0.0, race_temp)
-            
-            # Анимация движения
-            for i in range(len(t_race)):
-                progress = int((i / len(t_race)) * 100)
-                progress_super.progress(progress)
-                speed = abs(j_super[i]) if i < len(j_super) else abs(j_super[-1])
-                status_super.markdown(f"**Швидкість: {speed:.2e} А/м²** 🚀")
-                
-                # Визуализация трассы
-                track_html = f"""
-                <div style="background: linear-gradient(90deg, #ff4444 {progress}%, #333333 {progress}%); 
-                          height: 50px; border-radius: 10px; margin: 10px 0; position: relative;">
-                    <div style="position: absolute; left: {progress}%; top: -10px; font-size: 30px;">🏎️</div>
+            # Создаем HTML для анимации
+            race_html = f"""
+            <div style="margin: 20px 0;">
+                <h3>🏎️ НАДПРОВІДНИК - Супер-шосе без опору! 🛣️</h3>
+                <div style="background: linear-gradient(90deg, #ff4444 {progress_super}%, #333333 {progress_super}%); 
+                          height: 50px; border-radius: 10px; margin: 10px 0; position: relative; border: 2px solid #ff4444;">
+                    <div style="position: absolute; left: {progress_super}%; top: -15px; font-size: 40px; transform: translateX(-50%);">🏎️</div>
                 </div>
-                """
-                st.markdown(track_html, unsafe_allow_html=True)
+                <p><strong>Швидкість: {speed_super:.2e} А/м²</strong> 🚀</p>
                 
-                time.sleep(0.1)
-                if i == len(t_race) - 1:
-                    st.success("🎉 ФІНІШ! Електрони летять без опору!")
-        
-        with race_col2:
-            st.markdown("### 🚗 ЗВИЧАЙНИЙ МЕТАЛ")
-            st.markdown("**Міські пробки з опором!** 🚦")
-            
-            progress_metal = st.progress(0)
-            status_metal = st.empty()
-            
-            # Расчет скорости для металла
-            j_metal = calculate_normal_current_drude(t_race, race_field, race_temp, race_E0, 1.0, 5.0, 0.0)
-            
-            # Анимация движения с "препятствиями"
-            for i in range(len(t_race)):
-                progress = int((i / len(t_race)) * 100)
-                progress_metal.progress(min(progress, 85))  # Метал никогда не достигает 100%
-                speed = abs(j_metal[i]) if i < len(j_metal) else abs(j_metal[-1])
-                status_metal.markdown(f"**Швидкість: {speed:.2e} А/м²** 🐢")
-                
-                # Визуализация трассы с препятствиями
-                obstacles = "🚧" * (i % 3)  # Периодические препятствия
-                track_html = f"""
-                <div style="background: linear-gradient(90deg, #4444ff {min(progress, 85)}%, #333333 {min(progress, 85)}%); 
-                          height: 50px; border-radius: 10px; margin: 10px 0; position: relative;">
-                    <div style="position: absolute; left: {min(progress, 85)}%; top: -10px; font-size: 30px;">🚗</div>
-                    <div style="position: absolute; left: 70%; top: 5px; font-size: 20px;">{obstacles}</div>
+                <h3>🚗 ЗВИЧАЙНИЙ МЕТАЛ - Міські пробки з опором! 🚦</h3>
+                <div style="background: linear-gradient(90deg, #4444ff {progress_metal}%, #333333 {progress_metal}%); 
+                          height: 50px; border-radius: 10px; margin: 10px 0; position: relative; border: 2px solid #4444ff;">
+                    <div style="position: absolute; left: {progress_metal}%; top: -15px; font-size: 40px; transform: translateX(-50%);">🚗</div>
+                    <div style="position: absolute; left: 70%; top: 5px; font-size: 25px;">{'🚧' * ((i // 5) % 3)}</div>
                 </div>
-                """
-                st.markdown(track_html, unsafe_allow_html=True)
-                
-                time.sleep(0.1)
-                if i == len(t_race) - 1:
-                    st.warning("⏹️ ЗУПИНКА! Електрони зупинилися через опір!")
+                <p><strong>Швидкість: {speed_metal:.2e} А/м²</strong> 🐢</p>
+            </div>
+            """
+            
+            # Обновляем прогресс-бары
+            progress_col1, progress_col2 = st.columns(2)
+            with progress_col1:
+                st.progress(progress_super / 100, text="Надпровідник")
+            with progress_col2:
+                st.progress(progress_metal / 100, text="Метал")
+            
+            # Обновляем анимацию
+            animation_placeholder.markdown(race_html, unsafe_allow_html=True)
+            
+            # Обновляем статус
+            status_placeholder.markdown(f"**Час гонки: {t_race[i]:.1f}с** ⏱️")
+            
+            time.sleep(0.5 / race_speed)  # Контролируем скорость анимации
         
+        # Финальные результаты
         st.markdown("---")
-        
-        # Сравнительная статистика
         st.subheader("📈 Результати гонки")
+        
         col_stat1, col_stat2, col_stat3 = st.columns(3)
         
         with col_stat1:
@@ -685,8 +671,6 @@ def racing_page():
         
         **Результат**: Надпровідник завжди виграє гонку при низьких температурах! 🏆
         """)
-
-
 # =============================================================================
 # ОСНОВНА СТОРІНКА
 # =============================================================================

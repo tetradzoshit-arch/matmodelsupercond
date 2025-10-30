@@ -384,14 +384,13 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
             else:
                 pdf.drawString(100, y_position, conclusion)
             y_position -= 15
-            
-            if y_position < 50:
-                pdf.showPage()
-                pdf.setFont(font_name, 12)
-                y_position = 490
+                    if y_position < 50:
+            pdf.showPage()
+            pdf.setFont(font_name, 12)
+            y_position = 490
         
-       )
-            if saved_plots:
+        # Додавання графіків на окремі сторінки
+        if saved_plots:
             pdf.showPage()  # Нова сторінка для графіків
             pdf.setFont(font_name, 16)
             pdf.drawString(100, 520, "ГРАФІКИ РЕЗУЛЬТАТІВ")

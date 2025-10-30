@@ -583,34 +583,54 @@ def main():
         if st.button("📥 Згенерувати звіт", use_container_width=True):
             input_data = {'field_type': field_type, 'E0': E0, 'j0': j0, 't_max': t_max, 'T_common': current_temp}
             
-            t = np.linspace(0, t_max, 1000)
-            physical_analyses_for_report = []
-            math_analyses_for_report = []
+            # Створюємо аналізи для всіх збережених графіків
+            all_physical_analyses = []
+            all_math_analyses = []
             
-            if comparison_mode == "Порівняння":
-                j_super = calculate_superconducting_current(t, field_type, E0, a, omega, j0, T_common)
-                j_normal = calculate_normal_current_drude(t, field_type, T_common, E0, a, omega, j0)
-                physical_analyses_for_report = [
-                    analyze_physical_characteristics(t, j_super, "Надпровідник", field_type, T_common, omega),
-                    analyze_physical_characteristics(t, j_normal, "Звичайний метал", field_type, T_common, omega)
-                ]
-                math_analyses_for_report = [
-                    analyze_mathematical_characteristics(t, j_super, "Надпровідник", field_type, omega),
-                    analyze_mathematical_characteristics(t, j_normal, "Звичайний метал", field_type, omega)
-                ]
-            elif comparison_mode == "Один стан":
-                auto_state = determine_state(current_temp)
-                if auto_state == "Надпровідник":
-                    j_data = calculate_superconducting_current(t, field_type, E0, a, omega, j0, current_temp)
-                    physical_analyses_for_report = [analyze_physical_characteristics(t, j_data, "Надпровідник", field_type, current_temp, omega)]
-                    math_analyses_for_report = [analyze_mathematical_characteristics(t, j_data, "Надпровідник", field_type, omega)]
-                else:
-                    calc_func = calculate_normal_current_drude if metal_model == "Модель Друде (з перехідним процесом)" else calculate_normal_current_ohm
-                    j_data = calc_func(t, field_type, current_temp, E0, a, omega, j0)
-                    physical_analyses_for_report = [analyze_physical_characteristics(t, j_data, "Звичайний метал", field_type, current_temp, omega)]
-                    math_analyses_for_report = [analyze_mathematical_characteristics(t, j_data, "Звичайний метал", field_type, omega)]
+            for plot_data in st.session_state.saved_plots:
+                if plot_data['state'] == 'Надпровідник':
+                    physical_analysis = analyze_physical_characteristics(
+                        plot_data['t'], plot_data['j_data'], "Надпровідник", 
+                        plot_data['field_type'], plot_data['temperature'], plot_data.get('omega', 1.0)
+                    )
+                    math_analysis = analyze_mathematical_characteristics(
+                        plot_data['t'], plot_data['j_data'], "Надпровідник",
+                        plot_data['field_type'], plot_data.get('omega', 1.0)
+                    )
+                elif plot_data['state'] == 'Звичайний метал':
+                    physical_analysis = analyze_physical_characteristics(
+                        plot_data['t'], plot_data['j_data'], "Звичайний метал",
+                        plot_data['field_type'], plot_data['temperature'], plot_data.get('omega', 1.0)
+                    )
+                    math_analysis = analyze_mathematical_characteristics(
+                        plot_data['t'], plot_data['j_data'], "Звичайний метал",
+                        plot_data['field_type'], plot_data.get('omega', 1.0)
+                    )
+                else:  # Порівняння
+                    physical_analysis1 = analyze_physical_characteristics(
+                        plot_data['t'], plot_data['j_super'], "Надпровідник",
+                        plot_data['field_type'], plot_data['temperature'], plot_data.get('omega', 1.0)
+                    )
+                    physical_analysis2 = analyze_physical_characteristics(
+                        plot_data['t'], plot_data['j_normal'], "Звичайний метал", 
+                        plot_data['field_type'], plot_data['temperature'], plot_data.get('omega', 1.0)
+                    )
+                    math_analysis1 = analyze_mathematical_characteristics(
+                        plot_data['t'], plot_data['j_super'], "Надпровідник",
+                        plot_data['field_type'], plot_data.get('omega', 1.0)
+                    )
+                    math_analysis2 = analyze_mathematical_characteristics(
+                        plot_data['t'], plot_data['j_normal'], "Звичайний метал",
+                        plot_data['field_type'], plot_data.get('omega', 1.0)
+                    )
+                    all_physical_analyses.extend([physical_analysis1, physical_analysis2])
+                    all_math_analyses.extend([math_analysis1, math_analysis2])
+                    continue
+                
+                all_physical_analyses.append(physical_analysis)
+                all_math_analyses.append(math_analysis)
             
-            pdf_buffer = create_pdf_report(input_data, physical_analyses_for_report, math_analyses_for_report, st.session_state.saved_plots)
+            pdf_buffer = create_pdf_report(input_data, all_physical_analyses, all_math_analyses, st.session_state.saved_plots)
             st.download_button(
                 label="⬇️ Завантажити PDF звіт",
                 data=pdf_buffer,

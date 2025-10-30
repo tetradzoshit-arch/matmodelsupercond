@@ -535,6 +535,9 @@ def animations_page():
 # =============================================================================
 # СТОРІНКА ГОНОК
 # =============================================================================
+# =============================================================================
+# СТОРІНКА ГОНОК
+# =============================================================================
 
 def racing_page():
     st.header("🏎️ Електронні Гонки - Надпровідник vs Метал")
@@ -578,25 +581,47 @@ def racing_page():
             # Розрахунок для машинки 1
             if car1_type == "Надпровідник":
                 j_car1 = calculate_superconducting_current(t_race, race_field, race_E0, 1.0, 5.0, 0.0, car1_temp)
+                # Для надпровідника - більша швидкість
+                speed_multiplier1 = 2.5
             else:
                 j_car1 = calculate_normal_current_drude(t_race, race_field, car1_temp, race_E0, 1.0, 5.0, 0.0)
+                # Для металу - менша швидкість
+                speed_multiplier1 = 1.0
             
             # Розрахунок для машинки 2
             if car2_type == "Надпровідник":
                 j_car2 = calculate_superconducting_current(t_race, race_field, race_E0, 1.0, 5.0, 0.0, car2_temp)
+                speed_multiplier2 = 2.5
             else:
                 j_car2 = calculate_normal_current_drude(t_race, race_field, car2_temp, race_E0, 1.0, 5.0, 0.0)
+                speed_multiplier2 = 1.0
+            
+            # Нормалізація швидкостей для гонки
+            max_j1 = np.max(np.abs(j_car1)) if np.max(np.abs(j_car1)) > 0 else 1
+            max_j2 = np.max(np.abs(j_car2)) if np.max(np.abs(j_car2)) > 0 else 1
+            
+            # Застосування множників швидкості
+            race_progress1 = (np.abs(j_car1) / max_j1) * speed_multiplier1
+            race_progress2 = (np.abs(j_car2) / max_j2) * speed_multiplier2
+            
+            # Обмеження прогресу до 100%
+            race_progress1 = np.minimum(race_progress1, 1.0)
+            race_progress2 = np.minimum(race_progress2, 1.0)
             
             # Збереження даних
             st.session_state.race_data = {
                 't_race': t_race,
+                'progress_car1': race_progress1,
+                'progress_car2': race_progress2,
                 'j_car1': j_car1,
                 'j_car2': j_car2,
                 'car1_type': car1_type,
                 'car2_type': car2_type,
                 'car1_temp': car1_temp,
                 'car2_temp': car2_temp,
-                'race_speed': race_speed
+                'race_speed': race_speed,
+                'speed_multiplier1': speed_multiplier1,
+                'speed_multiplier2': speed_multiplier2
             }
             st.session_state.race_started = True
             st.session_state.race_frame = 0
@@ -609,6 +634,17 @@ def racing_page():
             data = st.session_state.race_data
             st.write(f"**🏎️ Машинка 1:** {data['car1_type']} ({data['car1_temp']}K)")
             st.write(f"**🚗 Машинка 2:** {data['car2_type']} ({data['car2_temp']}K)")
+            
+            # Показуємо множники швидкості
+            if data['car1_type'] == "Надпровідник":
+                st.success(f"⚡ Машинка 1: Супер-швидкість (x{data['speed_multiplier1']})")
+            else:
+                st.warning(f"🚦 Машинка 1: Звичайна швидкість (x{data['speed_multiplier1']})")
+                
+            if data['car2_type'] == "Надпровідник":
+                st.success(f"⚡ Машинка 2: Супер-швидкість (x{data['speed_multiplier2']})")
+            else:
+                st.warning(f"🚦 Машинка 2: Звичайна швидкість (x{data['speed_multiplier2']})")
         else:
             st.write(f"**🏎️ Машинка 1:** {car1_type} ({car1_temp}K)")
             st.write(f"**🚗 Машинка 2:** {car2_type} ({car2_temp}K)")
@@ -623,14 +659,8 @@ def racing_page():
         if frame < len(data['t_race']):
             st.subheader("🏁 ГОНКА ТРИВАЄ!")
             
-            progress_car1 = int((frame / len(data['t_race'])) * 100)
-            progress_car2 = int((frame / len(data['t_race'])) * 100)
-            
-            # Корекція прогресу для металу
-            if data['car1_type'] == "Метал":
-                progress_car1 = min(progress_car1, 80)
-            if data['car2_type'] == "Метал":
-                progress_car2 = min(progress_car2, 80)
+            progress_car1 = int(data['progress_car1'][frame] * 100)
+            progress_car2 = int(data['progress_car2'][frame] * 100)
             
             speed_car1 = abs(data['j_car1'][frame])
             speed_car2 = abs(data['j_car2'][frame])
@@ -638,9 +668,9 @@ def racing_page():
             # Візуалізація гонки
             st.write(f"### 🏎️ Машинка 1 - {data['car1_type']}")
             if data['car1_type'] == "Надпровідник":
-                st.success("🛣️ Супер-шосе без опору!")
+                st.success("🛣️ Супер-шосе без опору! ⚡")
             else:
-                st.warning("🚦 Міські пробки з опором!")
+                st.warning("🚦 Міські пробки з опором! 🐌")
             
             st.progress(progress_car1 / 100)
             
@@ -650,24 +680,27 @@ def racing_page():
             track1_display = "🏁" + "─" * car1_pos + "🏎️" + "·" * (track_length - car1_pos)
             st.code(track1_display)
             st.write(f"**Швидкість:** {speed_car1:.2e} А/м²")
+            st.write(f"**Прогрес:** {progress_car1}%")
             
             st.write("---")
             
             # Машинка 2
             st.write(f"### 🚗 Машинка 2 - {data['car2_type']}")
             if data['car2_type'] == "Надпровідник":
-                st.success("🛣️ Супер-шосе без опору!")
+                st.success("🛣️ Супер-шосе без опору! ⚡")
             else:
-                st.warning("🚦 Міські пробки з опором!")
+                st.warning("🚦 Міські пробки з опором! 🐌")
             
             st.progress(progress_car2 / 100)
             
-            # Траса машинки 2 з перешкодами
+            # Траса машинки 2
             car2_pos = int(progress_car2 * track_length / 100)
+            # Додаємо перешкоди тільки для металу
             obstacles = "🚧" * ((frame // 3) % 2) if data['car2_type'] == "Метал" else ""
             track2_display = "🏁" + "─" * car2_pos + "🚗" + "·" * (track_length - car2_pos) + " " + obstacles
             st.code(track2_display)
             st.write(f"**Швидкість:** {speed_car2:.2e} А/м²")
+            st.write(f"**Прогрес:** {progress_car2}%")
             
             # Статус гонки
             st.info(f"**⏱️ Час гонки: {data['t_race'][frame]:.1f}с** | **📊 Кадр: {frame + 1}/{len(data['t_race'])}**")
@@ -685,16 +718,16 @@ def racing_page():
             st.balloons()
             st.subheader("🎉 Гонка завершена!")
             
-            max_car1 = np.max(np.abs(data['j_car1']))
-            max_car2 = np.max(np.abs(data['j_car2']))
+            final_progress1 = int(data['progress_car1'][-1] * 100)
+            final_progress2 = int(data['progress_car2'][-1] * 100)
             
             col_res1, col_res2, col_res3 = st.columns(3)
             
             with col_res1:
-                if max_car1 > max_car2:
+                if final_progress1 > final_progress2:
                     st.success("🏆 Перемога машинки 1!")
                     winner = "🏎️ Машинка 1"
-                elif max_car2 > max_car1:
+                elif final_progress2 > final_progress1:
                     st.success("🏆 Перемога машинки 2!")
                     winner = "🚗 Машинка 2"
                 else:
@@ -703,14 +736,26 @@ def racing_page():
                 st.metric("Переможець", winner)
             
             with col_res2:
-                st.metric("Макс. швидкість 1", f"{max_car1:.2e} А/м²")
-                st.metric("Макс. швидкість 2", f"{max_car2:.2e} А/м²")
+                st.metric("Фінальний прогрес 1", f"{final_progress1}%")
+                st.metric("Фінальний прогрес 2", f"{final_progress2}%")
             
             with col_res3:
-                if st.button("🔄 Нова гонка", use_container_width=True):
-                    st.session_state.race_started = False
-                    st.session_state.race_data = None
-                    st.rerun()
+                st.metric("Макс. швидкість 1", f"{np.max(np.abs(data['j_car1'])):.2e} А/м²")
+                st.metric("Макс. швидкість 2", f"{np.max(np.abs(data['j_car2'])):.2e} А/м²")
+            
+            # Аналіз результатів
+            st.subheader("📈 Аналіз гонки")
+            if data['car1_type'] == "Надпровідник" and data['car2_type'] == "Метал":
+                st.success("**Фізика підтверджується!** Надпровідник показав кращий результат через відсутність опору!")
+            elif data['car1_type'] == "Метал" and data['car2_type'] == "Надпровідник":
+                st.success("**Фізика підтверджується!** Надпровідник обігнав метал через нульовий опір!")
+            else:
+                st.info("**Цікавий результат!** Обидві машинки одного типу - порівнюй температури!")
+            
+            if st.button("🔄 Нова гонка", use_container_width=True):
+                st.session_state.race_started = False
+                st.session_state.race_data = None
+                st.rerun()
     
     else:
         # Екран перед стартом
@@ -718,18 +763,19 @@ def racing_page():
         ### 🎮 Інструкція до гри:
         
         **🏎️ Надпровідник (T < 9.2K):**
-        - Без опору - електрони летять вільно
-        - Швидкість зростає без обмежень
+        - ⚡ **ШВИДКІСТЬ x2.5** - без опору!
+        - Електрони летять вільно
         - Фініш на максимумі
         
         **🚗 Метал (T ≥ 9.2K):**
-        - Є опір - електрони "гальмують"
-        - Швидкість обмежена
-        - Не досягає максимуму
+        - 🐌 **ЗВИЧАЙНА ШВИДКІСТЬ** - є опір!
+        - Електрони "гальмують"
+        - Обмежений прогрес
         
         **🎯 Порада:** Встанови температури нижче 9.2K для надпровідників!
+        
+        **⚡ Фізика в дії:** Надпровідник завжди швидший через нульовий опір!
         """)
-
 # =============================================================================
 # СТОРІНКА ПЕРЕДБАЧЕНЬ
 # =============================================================================

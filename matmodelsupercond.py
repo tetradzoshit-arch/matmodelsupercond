@@ -1,6 +1,3 @@
-**Ось повністю виправлений і робочий код.**  
-Проблема була в **UnboundLocalError** через те, що змінна `metal_model` використовувалася **всередині `main_page()`**, але **визначалася тільки в одному з режимів** (`comparison_mode == "Один стан"`).  
-
 import streamlit as st
 import numpy as np
 import plotly.graph_objects as go

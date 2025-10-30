@@ -372,22 +372,38 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
 # =============================================================================
 # НОВІ СТОРІНКИ (ДОДАТКОВІ)
 # =============================================================================
+# =============================================================================
+# СТОРІНКА АНІМАЦІЙ
+# =============================================================================
 
 def animations_page():
     st.header("🎬 Демонстраційні анімації")
     
-    col1, col2 = st.columns([2, 1])
+    # Параметри для всіх анімацій
+    col_params, col_main = st.columns([1, 2])
     
-    with col1:
-        st.subheader("Анімація зміни температури")
-        st.write("Плавна зміна температури від 1K до 18K з кроком 0.5K")
+    with col_params:
+        st.subheader("⚙️ Параметри анімацій")
+        anim_field_type = st.selectbox("Тип поля:", ["Статичне", "Лінійне", "Синусоїдальне"], key="anim_field")
+        anim_E0 = st.slider("Напруженість E₀ (В/м)", 0.1, 10.0, 1.0, 0.1, key="anim_E0")
+        anim_j0 = st.slider("Початковий струм j₀ (А/м²)", 0.0, 10.0, 0.0, 0.1, key="anim_j0")
+        anim_t_max = st.slider("Час моделювання (с)", 0.1, 10.0, 5.0, 0.1, key="anim_t_max")
+        anim_speed = st.slider("Швидкість анімації", 0.1, 2.0, 0.5, 0.1, key="anim_speed")
         
-        if st.button("▶️ Запустити температурну анімацію", key="temp_anim"):
+        anim_a = st.slider("Швидкість росту a", 0.1, 5.0, 1.0, 0.1, key="anim_a") if anim_field_type == "Лінійне" else 1.0
+        anim_omega = st.slider("Частота ω (рад/с)", 0.1, 20.0, 5.0, 0.1, key="anim_omega") if anim_field_type == "Синусоїдальне" else 1.0
+
+    with col_main:
+        # Анімація 1: Зміна температури
+        st.subheader("🌡️ Анімація зміни температури")
+        st.write("Плавна зміна температури від 1K до 18K")
+        
+        if st.button("▶️ Запустити температурну анімацію", key="temp_anim", use_container_width=True):
             progress_bar = st.progress(0)
             status_text = st.empty()
             plot_placeholder = st.empty()
             
-            temps = np.linspace(1, 18, 35)
+            temps = np.linspace(1, 18, 25)  # Меньше кадров для скорости
             
             for i, temp in enumerate(temps):
                 progress = int((i / len(temps)) * 100)
@@ -396,9 +412,9 @@ def animations_page():
                 state = "Надпровідник" if temp < Tc else "Метал"
                 status_text.text(f"Температура: {temp:.1f} K | Стан: {state}")
                 
-                t_anim = np.linspace(0, 5, 200)
-                j_super = calculate_superconducting_current(t_anim, "Статичне", 1.0, 1.0, 5.0, 0.0, temp)
-                j_normal = calculate_normal_current_drude(t_anim, "Статичне", temp, 1.0, 1.0, 5.0, 0.0)
+                t_anim = np.linspace(0, anim_t_max, 150)
+                j_super = calculate_superconducting_current(t_anim, anim_field_type, anim_E0, anim_a, anim_omega, anim_j0, temp)
+                j_normal = calculate_normal_current_drude(t_anim, anim_field_type, temp, anim_E0, anim_a, anim_omega, anim_j0)
                 
                 fig_anim = go.Figure()
                 fig_anim.add_trace(go.Scatter(x=t_anim, y=j_super, name='Надпровідник', 
@@ -410,64 +426,518 @@ def animations_page():
                     title=f"T = {temp:.1f} K ({state})",
                     xaxis_title="Час (с)",
                     yaxis_title="Густина струму (А/м²)",
-                    height=500
+                    height=400
                 )
                 fig_anim.update_yaxes(tickformat=".2e")
                 
                 plot_placeholder.plotly_chart(fig_anim, use_container_width=True)
-                time.sleep(0.15)
+                time.sleep(0.5 / anim_speed)
             
             progress_bar.progress(100)
             status_text.text("✅ Анімація завершена!")
-    
-    with col2:
-        st.subheader("Параметри анімації")
-        anim_speed = st.slider("Швидкість анімації", 0.1, 1.0, 0.15, 0.05, key="anim_speed")
-        st.info(f"Крок температури: 0.5K")
-        st.info(f"Всього кадрів: 35")
+        
+        st.markdown("---")
+        
+        # Анімація 2: Перехід через Tc
+        st.subheader("⚡ Анімація переходу через T_c")
+        st.write("Детальний перехід через критичну температуру")
+        
+        if st.button("▶️ Запустити анімацію переходу", key="transition_anim", use_container_width=True):
+            progress_bar2 = st.progress(0)
+            status_text2 = st.empty()
+            plot_placeholder2 = st.empty()
+            
+            transition_temps = np.linspace(7.0, 11.0, 20)
+            
+            for i, T_trans in enumerate(transition_temps):
+                progress = int((i / len(transition_temps)) * 100)
+                progress_bar2.progress(progress)
+                
+                state = "Надпровідник" if T_trans < Tc else "Метал"
+                status_text2.text(f"T = {T_trans:.2f} K | Стан: {state}")
+                
+                t_trans = np.linspace(0, min(anim_t_max, 3.0), 100)
+                
+                if T_trans < Tc:
+                    j_data = calculate_superconducting_current(t_trans, anim_field_type, anim_E0, anim_a, anim_omega, anim_j0, T_trans)
+                    color = 'red'
+                else:
+                    j_data = calculate_normal_current_drude(t_trans, anim_field_type, T_trans, anim_E0, anim_a, anim_omega, anim_j0)
+                    color = 'blue'
+                
+                fig_trans = go.Figure()
+                fig_trans.add_trace(go.Scatter(x=t_trans, y=j_data, name=state,
+                                             line=dict(color=color, width=4)))
+                
+                fig_trans.update_layout(
+                    title=f"Перехід через T_c: {T_trans:.2f} K",
+                    xaxis_title="Час (с)",
+                    yaxis_title="Густина струму (А/м²)",
+                    height=400,
+                    showlegend=True
+                )
+                fig_trans.update_yaxes(tickformat=".2e")
+                
+                plot_placeholder2.plotly_chart(fig_trans, use_container_width=True)
+                time.sleep(0.5 / anim_speed)
+            
+            progress_bar2.progress(100)
+            status_text2.text("✅ Перехід завершено!")
+        
+        st.markdown("---")
+        
+        # Анімація 3: Порівняння типів полів
+        st.subheader("🔄 Порівняння типів полів")
+        st.write("Порівняння поведінки для різних типів електричних полів")
+        
+        temp_comparison = st.slider("Температура для порівняння", 1.0, 18.0, 4.2, 0.1, key="temp_comp")
+        
+        if st.button("▶️ Порівняти типи полів", key="field_comparison", use_container_width=True):
+            plot_placeholder3 = st.empty()
+            progress_bar3 = st.progress(0)
+            
+            field_types = ["Статичне", "Лінійне", "Синусоїдальне"]
+            colors = ['#FF6B6B', '#4ECDC4', '#45B7D1']
+            t_comp = np.linspace(0, anim_t_max, 200)
+            
+            for i, field_type in enumerate(field_types):
+                progress = int((i / len(field_types)) * 100)
+                progress_bar3.progress(progress)
+                
+                fig_comp = go.Figure()
+                
+                # Надпровідник
+                j_super = calculate_superconducting_current(t_comp, field_type, anim_E0, 1.0, 5.0, 0.0, temp_comparison)
+                fig_comp.add_trace(go.Scatter(x=t_comp, y=j_super, 
+                                            name=f'Надпровідник - {field_type}',
+                                            line=dict(color=colors[i], width=3, dash='solid')))
+                
+                # Метал
+                j_normal = calculate_normal_current_drude(t_comp, field_type, temp_comparison, anim_E0, 1.0, 5.0, 0.0)
+                fig_comp.add_trace(go.Scatter(x=t_comp, y=j_normal, 
+                                            name=f'Метал - {field_type}',
+                                            line=dict(color=colors[i], width=3, dash='dot')))
+                
+                fig_comp.update_layout(
+                    title=f"Порівняння типів полів при T = {temp_comparison}K",
+                    xaxis_title="Час (с)",
+                    yaxis_title="Густина струму (А/м²)",
+                    height=500
+                )
+                fig_comp.update_yaxes(tickformat=".2e")
+                
+                plot_placeholder3.plotly_chart(fig_comp, use_container_width=True)
+                time.sleep(1.0 / anim_speed)
+            
+            progress_bar3.progress(100)
+            st.success("✅ Порівняння завершено!")
+
+# =============================================================================
+# СТОРІНКА ГОНОК
+# =============================================================================
 
 def racing_page():
-    st.header("🏎️ Електронні Гонки")
-    st.write("Сторінка гонок - проста демонстрація")
+    st.header("🏎️ Електронні Гонки - Надпровідник vs Метал")
+    
+    # Ініціалізація стану гонки
+    if 'race_started' not in st.session_state:
+        st.session_state.race_started = False
+    if 'race_frame' not in st.session_state:
+        st.session_state.race_frame = 0
+    if 'race_data' not in st.session_state:
+        st.session_state.race_data = None
     
     col1, col2 = st.columns(2)
     
     with col1:
-        car1_type = st.radio("Машинка 1:", ["Надпровідник", "Метал"], key="car1")
-        car1_temp = st.slider("Температура 1 (K)", 1.0, 18.0, 4.2, 0.1, key="temp1")
+        st.subheader("🚦 Параметри гонки")
+        
+        # Автоматичний вибір типу за температурою
+        st.write("**Обери температури для машинок:**")
+        
+        col_car1, col_car2 = st.columns(2)
+        with col_car1:
+            car1_temp = st.slider("Температура машинки 1 (K)", 1.0, 18.0, 4.2, 0.1, key="car1_temp")
+            car1_type = "Надпровідник" if car1_temp < Tc else "Метал"
+            st.info(f"**Машинка 1:** {car1_type}")
+            
+        with col_car2:
+            car2_temp = st.slider("Температура машинки 2 (K)", 1.0, 18.0, 12.0, 0.1, key="car2_temp")
+            car2_type = "Надпровідник" if car2_temp < Tc else "Метал"
+            st.info(f"**Машинка 2:** {car2_type}")
+        
+        # Загальні параметри
+        race_field = st.selectbox("Тип поля:", ["Статичне", "Лінійне", "Синусоїдальне"], key="race_field")
+        race_E0 = st.slider("Потужність поля E₀", 0.1, 5.0, 1.0, 0.1, key="race_E0")
+        race_speed = st.slider("Швидкість анімації", 0.5, 3.0, 1.0, 0.1, key="race_speed")
+        
+        if st.button("🎮 Старт гонки!", use_container_width=True) and not st.session_state.race_started:
+            # Підготовка даних для гонки
+            t_race = np.linspace(0, 4, 25)  # Зменшена кількість кадрів
+            
+            # Розрахунок для машинки 1
+            if car1_type == "Надпровідник":
+                j_car1 = calculate_superconducting_current(t_race, race_field, race_E0, 1.0, 5.0, 0.0, car1_temp)
+            else:
+                j_car1 = calculate_normal_current_drude(t_race, race_field, car1_temp, race_E0, 1.0, 5.0, 0.0)
+            
+            # Розрахунок для машинки 2
+            if car2_type == "Надпровідник":
+                j_car2 = calculate_superconducting_current(t_race, race_field, race_E0, 1.0, 5.0, 0.0, car2_temp)
+            else:
+                j_car2 = calculate_normal_current_drude(t_race, race_field, car2_temp, race_E0, 1.0, 5.0, 0.0)
+            
+            # Збереження даних
+            st.session_state.race_data = {
+                't_race': t_race,
+                'j_car1': j_car1,
+                'j_car2': j_car2,
+                'car1_type': car1_type,
+                'car2_type': car2_type,
+                'car1_temp': car1_temp,
+                'car2_temp': car2_temp,
+                'race_speed': race_speed
+            }
+            st.session_state.race_started = True
+            st.session_state.race_frame = 0
+            st.rerun()
     
     with col2:
-        car2_type = st.radio("Машинка 2:", ["Надпровідник", "Метал"], key="car2")
-        car2_temp = st.slider("Температура 2 (K)", 1.0, 18.0, 12.0, 0.1, key="temp2")
+        st.subheader("📊 Стан системи")
+        
+        if st.session_state.race_data:
+            data = st.session_state.race_data
+            st.write(f"**🏎️ Машинка 1:** {data['car1_type']} ({data['car1_temp']}K)")
+            st.write(f"**🚗 Машинка 2:** {data['car2_type']} ({data['car2_temp']}K)")
+        else:
+            st.write(f"**🏎️ Машинка 1:** {car1_type} ({car1_temp}K)")
+            st.write(f"**🚗 Машинка 2:** {car2_type} ({car2_temp}K)")
+        
+        st.metric("Критична температура T_c", f"{Tc} K")
     
-    if st.button("🎮 Старт гонки"):
-        st.info(f"Гонка запущена: {car1_type} vs {car2_type}")
-        st.success("🏎️ Машинка 1: Готується до старту...")
-        st.success("🚗 Машинка 2: Готується до старту...")
+    # Гонкова траса
+    if st.session_state.race_started and st.session_state.race_data:
+        data = st.session_state.race_data
+        frame = st.session_state.race_frame
+        
+        if frame < len(data['t_race']):
+            st.subheader("🏁 ГОНКА ТРИВАЄ!")
+            
+            progress_car1 = int((frame / len(data['t_race'])) * 100)
+            progress_car2 = int((frame / len(data['t_race'])) * 100)
+            
+            # Корекція прогресу для металу
+            if data['car1_type'] == "Метал":
+                progress_car1 = min(progress_car1, 80)
+            if data['car2_type'] == "Метал":
+                progress_car2 = min(progress_car2, 80)
+            
+            speed_car1 = abs(data['j_car1'][frame])
+            speed_car2 = abs(data['j_car2'][frame])
+            
+            # Візуалізація гонки
+            st.write(f"### 🏎️ Машинка 1 - {data['car1_type']}")
+            if data['car1_type'] == "Надпровідник":
+                st.success("🛣️ Супер-шосе без опору!")
+            else:
+                st.warning("🚦 Міські пробки з опором!")
+            
+            st.progress(progress_car1 / 100)
+            
+            # Траса машинки 1
+            track_length = 40
+            car1_pos = int(progress_car1 * track_length / 100)
+            track1_display = "🏁" + "─" * car1_pos + "🏎️" + "·" * (track_length - car1_pos)
+            st.code(track1_display)
+            st.write(f"**Швидкість:** {speed_car1:.2e} А/м²")
+            
+            st.write("---")
+            
+            # Машинка 2
+            st.write(f"### 🚗 Машинка 2 - {data['car2_type']}")
+            if data['car2_type'] == "Надпровідник":
+                st.success("🛣️ Супер-шосе без опору!")
+            else:
+                st.warning("🚦 Міські пробки з опором!")
+            
+            st.progress(progress_car2 / 100)
+            
+            # Траса машинки 2 з перешкодами
+            car2_pos = int(progress_car2 * track_length / 100)
+            obstacles = "🚧" * ((frame // 3) % 2) if data['car2_type'] == "Метал" else ""
+            track2_display = "🏁" + "─" * car2_pos + "🚗" + "·" * (track_length - car2_pos) + " " + obstacles
+            st.code(track2_display)
+            st.write(f"**Швидкість:** {speed_car2:.2e} А/м²")
+            
+            # Статус гонки
+            st.info(f"**⏱️ Час гонки: {data['t_race'][frame]:.1f}с** | **📊 Кадр: {frame + 1}/{len(data['t_race'])}**")
+            
+            # Автоматичне продовження
+            st.session_state.race_frame += 1
+            time.sleep(1.0 / data['race_speed'])
+            st.rerun()
+        
+        else:
+            # Гонка завершена
+            st.session_state.race_started = False
+            
+            # Результати
+            st.balloons()
+            st.subheader("🎉 Гонка завершена!")
+            
+            max_car1 = np.max(np.abs(data['j_car1']))
+            max_car2 = np.max(np.abs(data['j_car2']))
+            
+            col_res1, col_res2, col_res3 = st.columns(3)
+            
+            with col_res1:
+                if max_car1 > max_car2:
+                    st.success("🏆 Перемога машинки 1!")
+                    winner = "🏎️ Машинка 1"
+                elif max_car2 > max_car1:
+                    st.success("🏆 Перемога машинки 2!")
+                    winner = "🚗 Машинка 2"
+                else:
+                    st.info("🤝 Нічия!")
+                    winner = "🤝 Нічия"
+                st.metric("Переможець", winner)
+            
+            with col_res2:
+                st.metric("Макс. швидкість 1", f"{max_car1:.2e} А/м²")
+                st.metric("Макс. швидкість 2", f"{max_car2:.2e} А/м²")
+            
+            with col_res3:
+                if st.button("🔄 Нова гонка", use_container_width=True):
+                    st.session_state.race_started = False
+                    st.session_state.race_data = None
+                    st.rerun()
+    
+    else:
+        # Екран перед стартом
+        st.info("""
+        ### 🎮 Інструкція до гри:
+        
+        **🏎️ Надпровідник (T < 9.2K):**
+        - Без опору - електрони летять вільно
+        - Швидкість зростає без обмежень
+        - Фініш на максимумі
+        
+        **🚗 Метал (T ≥ 9.2K):**
+        - Є опір - електрони "гальмують"
+        - Швидкість обмежена
+        - Не досягає максимуму
+        
+        **🎯 Порада:** Встанови температури нижче 9.2K для надпровідників!
+        """)
+
+# =============================================================================
+# СТОРІНКА ПЕРЕДБАЧЕНЬ
+# =============================================================================
+
+def generate_game_problem(difficulty):
+    """Генерація випадкової задачі для гри"""
+    problems = {
+        "easy": [
+            {"field": "Статичне", "T": 4.2, "E0": 1.0, "hint": "Надпровідник при низькій температурі"},
+            {"field": "Статичне", "T": 12.0, "E0": 1.0, "hint": "Метал при високій температурі"}
+        ],
+        "medium": [
+            {"field": "Лінійне", "T": 4.2, "E0": 0.5, "hint": "Надпровідник з лінійним полем"},
+            {"field": "Синусоїдальне", "T": 12.0, "E0": 2.0, "hint": "Метал зі змінним полем"}
+        ],
+        "hard": [
+            {"field": random.choice(["Статичне", "Лінійне", "Синусоїдальне"]), 
+             "T": random.uniform(3.0, 15.0), 
+             "E0": random.uniform(0.3, 3.0),
+             "hint": "Випадкові параметри - вгадай стан!"}
+        ]
+    }
+    
+    difficulty_key = "easy" if "Простий" in difficulty else "medium" if "Середній" in difficulty else "hard"
+    problem = random.choice(problems[difficulty_key])
+    
+    # Генерація даних
+    t_known = np.linspace(0, 2.5, 50)
+    t_full = np.linspace(0, 5, 100)
+    
+    if problem["T"] < Tc:
+        j_known = calculate_superconducting_current(t_known, problem["field"], problem["E0"], 1.0, 5.0, 0.0, problem["T"])
+        j_full = calculate_superconducting_current(t_full, problem["field"], problem["E0"], 1.0, 5.0, 0.0, problem["T"])
+        material_type = "super"
+    else:
+        j_known = calculate_normal_current_drude(t_known, problem["field"], problem["T"], problem["E0"], 1.0, 5.0, 0.0)
+        j_full = calculate_normal_current_drude(t_full, problem["field"], problem["T"], problem["E0"], 1.0, 5.0, 0.0)
+        material_type = "metal"
+    
+    return {
+        "t_known": t_known,
+        "j_known": j_known,
+        "t_full": t_full,
+        "j_full": j_full,
+        "material_type": material_type,
+        "params": problem,
+        "hint": problem["hint"]
+    }
 
 def prediction_game_page():
-    st.header("🔮 Передбач майбутнє")
-    st.write("Сторінка передбачення - проста демонстрація")
+    st.header("🔮 Передбач майбутнє провідника!")
     
-    if st.button("🎲 Нова задача"):
-        problem_temp = random.uniform(3.0, 15.0)
-        state = "Надпровідник" if problem_temp < Tc else "Метал"
+    st.markdown("""
+    ### 🎯 Правила гри:
+    1. Дивись на початок графіка струму
+    2. Обери тип поведінки який очікуєш  
+    3. Дізнайся чи правильно ти зрозумів фізику процесу!
+    """)
+    
+    # Ініціалізація стану гри
+    if 'game_data' not in st.session_state:
+        st.session_state.game_data = None
+    if 'user_choice' not in st.session_state:
+        st.session_state.user_choice = None
+    if 'show_solution' not in st.session_state:
+        st.session_state.show_solution = False
+    
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        st.subheader("📈 Графік для передбачення")
         
-        st.info(f"Задача: Температура = {problem_temp:.1f}K")
-        st.write("Як буде поводитися струм?")
+        # Параметри задачі
+        game_mode = st.selectbox("Рівень складності:", [
+            "Простий - явний надпровідник чи метал",
+            "Середній - складне поле", 
+            "Складний - випадкові параметри"
+        ], key="game_mode")
         
-        choice = st.radio("Оберіть варіант:", [
-            "Нескінченне зростання",
-            "Насичення", 
-            "Коливання"
-        ])
+        if st.button("🎲 Нова задача", key="new_problem", use_container_width=True):
+            st.session_state.game_data = generate_game_problem(game_mode)
+            st.session_state.user_choice = None
+            st.session_state.show_solution = False
+            st.rerun()
         
-        if st.button("🎯 Перевірити"):
-            if (state == "Надпровідник" and choice == "Нескінченне зростання") or \
-               (state == "Метал" and choice == "Насичення"):
-                st.success("✅ Правильно!")
-            else:
-                st.error("❌ Спробуйте ще!")
+        # Відображення задачі
+        if st.session_state.game_data:
+            data = st.session_state.game_data
+            
+            # Підказка
+            with st.expander("💡 Підказка"):
+                st.write(data["hint"])
+                st.write(f"Температура: {data['params']['T']:.1f}K")
+                st.write(f"Тип поля: {data['params']['field']}")
+            
+            # Графік з відомою частиною
+            fig = go.Figure()
+            
+            # Відома частина
+            fig.add_trace(go.Scatter(
+                x=data["t_known"], y=data["j_known"],
+                mode='lines',
+                name='Відома частина',
+                line=dict(color='blue', width=4)
+            ))
+            
+            # Передбачення користувача
+            if st.session_state.user_drawing:
+                user_t, user_j = st.session_state.user_drawing
+                fig.add_trace(go.Scatter(
+                    x=user_t, y=user_j,
+                    mode='lines',
+                    name='Твоє передбачення',
+                    line=dict(color='orange', width=4, dash='dash')
+                ))
+            
+            # Розв'язок
+            if st.session_state.show_solution:
+                fig.add_trace(go.Scatter(
+                    x=data["t_full"], y=data["j_full"],
+                    mode='lines',
+                    name='Правильна відповідь',
+                    line=dict(color='green', width=4, dash='dot')
+                ))
+            
+            fig.update_layout(
+                title="Намалюй продовження графіка 📈",
+                xaxis_title="Час (с)",
+                yaxis_title="Густина струму (А/м²)",
+                height=400,
+                showlegend=True
+            )
+            fig.update_yaxes(tickformat=".2e")
+            
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # Інтерфейс вибору
+            st.subheader("✏️ Обери тип поведінки")
+            
+            drawing_type = st.radio("Як буде розвиватися графік?", [
+                "Нескінченне зростання (надпровідник)",
+                "Насичення (метал)", 
+                "Коливання",
+                "Інше"
+            ], key="draw_type")
+            
+            if st.button("🎯 Перевірити відповідь", use_container_width=True):
+                st.session_state.user_choice = drawing_type
+                st.session_state.show_solution = True
+                
+                # Генерація передбачення
+                t_pred = np.linspace(2.5, 5, 50)
+                if drawing_type == "Нескінченне зростання (надпровідник)":
+                    j_pred = data["j_known"][-1] + np.linspace(0, abs(data["j_known"][-1]) * 3, 50)
+                elif drawing_type == "Насичення (метал)":
+                    j_pred = np.full(50, data["j_known"][-1] * 0.9)
+                elif drawing_type == "Коливання":
+                    j_pred = data["j_known"][-1] + np.sin(np.linspace(0, 4*np.pi, 50)) * abs(data["j_known"][-1]) * 0.5
+                else:
+                    j_pred = data["j_known"][-1] + np.random.normal(0, abs(data["j_known"][-1]) * 0.3, 50)
+                
+                st.session_state.user_drawing = (t_pred, j_pred)
+                st.rerun()
+            
+            # Оцінка результату
+            if st.session_state.show_solution and st.session_state.user_choice:
+                user_choice = st.session_state.user_choice
+                real_type = "Надпровідник" if data["material_type"] == "super" else "Метал"
+                
+                # Проста оцінка
+                if ("надпровідник" in user_choice.lower() and real_type == "Надпровідник") or \
+                   ("метал" in user_choice.lower() and real_type == "Метал"):
+                    accuracy = random.randint(85, 98)
+                    st.success("🎉 Відмінно! Ти правильно зрозумів фізику!")
+                else:
+                    accuracy = random.randint(40, 65)
+                    st.error("❌ Спробуй ще! Зверни увагу на температуру.")
+                
+                st.subheader("📊 Результат")
+                col_res1, col_res2 = st.columns(2)
+                with col_res1:
+                    st.metric("Точність", f"{accuracy}%")
+                with col_res2:
+                    st.metric("Правильна відповідь", real_type)
+    
+    with col2:
+        st.subheader("🎓 Навчання")
+        
+        st.markdown("""
+        ### 📖 Підказки:
+        
+        **Надпровідник (T < 9.2K):**
+        - Нескінченне зростання струму
+        - Немає насичення
+        - Для синусоїдального поля - чисті коливання
+        
+        **Метал (T ≥ 9.2K):**
+        - Насичення струму  
+        - Стаціонарне значення
+        - Для синусоїдального поля - затухаючі коливання
+        """)
+        
+        st.info("""
+        ### 💡 Поради:
+        - Звертай увагу на температуру
+        - Аналізуй нахил графіка
+        - Пам'ятай про T_c = 9.2K
+        """)
 
 # =============================================================================
 # ОСНОВНА СТОРІНКА (ПОВНІСТЮ ЗБЕРЕЖЕНА)

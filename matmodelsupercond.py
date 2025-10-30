@@ -367,6 +367,14 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
         buffer.seek(0)
         return buffer
 
+
+with st.sidebar:
+    st.title("🧪 Навигация")
+    page = st.radio("Выберите страницу:", [
+        "🧪 Основная страница",
+        "🎬 Анимации и демонстрации"
+
+if page == "🧪 Основная страница":        
 def main():
     st.set_page_config(page_title="Моделювання струму", layout="wide")
     st.title("🔬 Моделювання динаміки струму в ніобії")
@@ -692,110 +700,105 @@ def main():
         - Широко використовується у надпровідних магнітах
         """)
 
-    # Анімації та додаткові функції
-    with st.expander("🎬 Демонстраційні анімації"):
-        st.subheader("Температурна анімація")
-        if st.button("▶️ Запустити анімацію зміни температури"):
-            import time
+ elif page == "🎬 Анімації та демонстрації":
+        st.header("🎬 Демонстраційні анімації")
+        
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            st.subheader("Анімація зміни температури")
+            st.write("Плавна зміна температури від 1K до 18K з кроком 0.5K")
             
-            # Створюємо прогрес бар
-            progress_bar = st.progress(0)
-            status_text = st.empty()
-            plot_placeholder = st.empty()
+            if st.button("▶️ Запустити температурну анімацію", key="temp_anim"):
+                import time
+                
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+                plot_placeholder = st.empty()
+                
+                # Більш плавна анімація
+                temps = np.linspace(1, 18, 35)  # Більше точок
+                
+                for i, temp in enumerate(temps):
+                    progress = int((i / len(temps)) * 100)
+                    progress_bar.progress(progress)
+                    
+                    state = "Надпровідник" if temp < Tc else "Метал"
+                    status_text.text(f"Температура: {temp:.1f} K | Стан: {state}")
+                    
+                    t_anim = np.linspace(0, t_max, 200)
+                    j_super = calculate_superconducting_current(t_anim, field_type, E0, a, omega, j0, temp)
+                    j_normal = calculate_normal_current_drude(t_anim, field_type, temp, E0, a, omega, j0)
+                    
+                    fig_anim = go.Figure()
+                    fig_anim.add_trace(go.Scatter(x=t_anim, y=j_super, name='Надпровідник', 
+                                                line=dict(color='red', width=3)))
+                    fig_anim.add_trace(go.Scatter(x=t_anim, y=j_normal, name='Метал', 
+                                                line=dict(color='blue', width=3)))
+                    
+                    fig_anim.update_layout(
+                        title=f"T = {temp:.1f} K ({state})",
+                        xaxis_title="Час (с)",
+                        yaxis_title="Густина струму (А/м²)",
+                        height=500
+                    )
+                    fig_anim.update_yaxes(tickformat=".2e")
+                    
+                    plot_placeholder.plotly_chart(fig_anim, use_container_width=True)
+                    time.sleep(0.15)  # Трохи швидше
+                
+                progress_bar.progress(100)
+                status_text.text("✅ Анімація завершена!")
+        
+        with col2:
+            st.subheader("Параметри анімації")
+            anim_speed = st.slider("Швидкість анімації", 0.1, 1.0, 0.15, 0.05, key="anim_speed")
+            st.info(f"Крок температури: 0.5K")
+            st.info(f"Всього кадрів: 35")
             
-            # Діапазон температур для анімації
-            temps = np.linspace(1, 18, 30)
-            
-            for i, temp in enumerate(temps):
-                # Оновлюємо прогрес
-                progress = int((i / len(temps)) * 100)
-                progress_bar.progress(progress)
-                status_text.text(f"Температура: {temp:.1f} K | Стан: {determine_state(temp)}")
+            st.subheader("Ефект переходу")
+            if st.button("⚡ Анімація переходу через T_c", key="transition_anim"):
+                # Анімація переходу через критичну температуру
+                transition_temps = np.linspace(8.0, 11.0, 25)  # Плавний перехід
                 
-                # Розраховуємо струми
-                t_anim = np.linspace(0, t_max, 200)
-                j_super = calculate_superconducting_current(t_anim, field_type, E0, a, omega, j0, temp)
-                j_normal = calculate_normal_current_drude(t_anim, field_type, temp, E0, a, omega, j0)
+                progress_bar2 = st.progress(0)
+                status_text2 = st.empty()
+                plot_placeholder2 = st.empty()
                 
-                # Створюємо графік
-                fig_anim = go.Figure()
-                fig_anim.add_trace(go.Scatter(x=t_anim, y=j_super, name='Надпровідник', 
-                                            line=dict(color='red', width=3)))
-                fig_anim.add_trace(go.Scatter(x=t_anim, y=j_normal, name='Метал', 
-                                            line=dict(color='blue', width=3)))
+                for i, T_trans in enumerate(transition_temps):
+                    progress = int((i / len(transition_temps)) * 100)
+                    progress_bar2.progress(progress)
+                    
+                    state = "Надпровідник" if T_trans < Tc else "Метал"
+                    status_text2.text(f"T = {T_trans:.2f} K | Перехід до: {state}")
+                    
+                    t_trans = np.linspace(0, min(t_max, 2.0), 100)  # Коротший час для кращого відображення
+                    
+                    if T_trans < Tc:
+                        j_data = calculate_superconducting_current(t_trans, field_type, E0, a, omega, j0, T_trans)
+                        color = 'red'
+                    else:
+                        j_data = calculate_normal_current_drude(t_trans, field_type, T_trans, E0, a, omega, j0)
+                        color = 'blue'
+                    
+                    fig_trans = go.Figure()
+                    fig_trans.add_trace(go.Scatter(x=t_trans, y=j_data, name=state,
+                                                 line=dict(color=color, width=4)))
+                    
+                    fig_trans.update_layout(
+                        title=f"Перехід через T_c: {T_trans:.2f} K",
+                        xaxis_title="Час (с)",
+                        yaxis_title="Густина струму (А/м²)",
+                        height=400,
+                        showlegend=True
+                    )
+                    fig_trans.update_yaxes(tickformat=".2e")
+                    
+                    plot_placeholder2.plotly_chart(fig_trans, use_container_width=True)
+                    time.sleep(anim_speed)
                 
-                fig_anim.update_layout(
-                    title=f"Динаміка струму при T = {temp:.1f} K",
-                    xaxis_title="Час (с)",
-                    yaxis_title="Густина струму (А/м²)",
-                    height=400
-                )
-                fig_anim.update_yaxes(tickformat=".2e")
-                
-                # Відображаємо графік
-                plot_placeholder.plotly_chart(fig_anim, use_container_width=True)
-                
-                # Невелика затримка для анімації
-                time.sleep(0.2)
-            
-            # Завершення анімації
-            progress_bar.progress(100)
-            status_text.text("✅ Анімація завершена!")
-            st.success("Анімація успішно завершена! Спробуйте різні параметри.")
-
-        st.subheader("Швидкий перехід через критичну температуру")
-        if st.button("⚡ Показати перехід через T_c"):
-            transition_temps = [8.0, 9.2, 10.0, 12.0]  # Нижче, рівно, вище Tc
-            
-            for T_trans in transition_temps:
-                state = "Надпровідник" if T_trans < Tc else "Звичайний метал"
-                color = "red" if T_trans < Tc else "blue"
-                
-                st.markdown(f"### T = {T_trans} K - **{state}**")
-                
-                # Швидкий графік
-                t_trans = np.linspace(0, t_max, 100)
-                if T_trans < Tc:
-                    j_data = calculate_superconducting_current(t_trans, field_type, E0, a, omega, j0, T_trans)
-                else:
-                    j_data = calculate_normal_current_drude(t_trans, field_type, T_trans, E0, a, omega, j0)
-                
-                fig_trans = go.Figure()
-                fig_trans.add_trace(go.Scatter(x=t_trans, y=j_data, name=state, 
-                                             line=dict(color=color, width=3)))
-                fig_trans.update_layout(height=300, showlegend=False)
-                fig_trans.update_yaxes(tickformat=".2e")
-                
-                st.plotly_chart(fig_trans, use_container_width=True)
-
-    # Статистика сесії
-    with st.expander("📈 Статистика сесії"):
-        if st.session_state.saved_plots:
-            max_currents = []
-            for plot in st.session_state.saved_plots:
-                if plot['state'] in ['Надпровідник', 'Звичайний метал']:
-                    max_currents.append(np.max(plot['j_data']))
-                else:  # Порівняння
-                    max_currents.extend([np.max(plot['j_super']), np.max(plot['j_normal'])])
-            
-            if max_currents:
-                max_current = np.max(max_currents)
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("📊 Максимальний струм", 
-                             f"{max_current:.2e} А/м²",
-                             f"{max_current/1e10:.1f}×10¹⁰ А/м²")
-                with col2:
-                    st.metric("🎯 Експериментів", 
-                             len(st.session_state.saved_plots),
-                             "збережених графіків")
-                with col3:
-                    unique_temps = len(set(plot['temperature'] for plot in st.session_state.saved_plots))
-                    st.metric("🌡️ Температур", 
-                             unique_temps,
-                             "унікальних значень")
-        else:
-            st.info("Немає даних для статистики. Збережіть графіки для аналізу.")
+                progress_bar2.progress(100)
+                status_text2.text("✅ Перехід завершено!")
 
 if __name__ == "__main__":
     main()

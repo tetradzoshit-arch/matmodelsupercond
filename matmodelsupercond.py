@@ -505,6 +505,187 @@ def run_field_comparison_animation():
         
         progress_bar.progress(100)
         st.success("✅ Порівняння завершено!")
+# =============================================================================
+# ІНТЕРАКТИВНІ ГОНКИ
+# =============================================================================
+def racing_page():
+    st.header("🏎️ Електронні Гонки - Надпровідник vs Метал")
+    
+    st.markdown("""
+    ### 🎯 Мета гри:
+    Побачити різницю між надпровідником та звичайним металом через гонку електронів!
+    """)
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("🚦 Параметри гонки")
+        
+        race_temp = st.slider("Температура (K)", 1.0, 18.0, 4.2, 0.1, key="race_temp")
+        race_field = st.selectbox("Тип поля:", ["Статичне", "Лінійне", "Синусоїдальне"], key="race_field")
+        race_E0 = st.slider("Потужність поля E₀", 0.1, 10.0, 1.0, 0.1, key="race_E0")
+        
+        if st.button("🎮 Старт гонки!", use_container_width=True):
+            st.session_state.race_started = True
+            st.session_state.race_time = 0
+    
+    with col2:
+        st.subheader("📊 Стан системи")
+        state = "🏎️ НАДПРОВІДНИК" if race_temp < Tc else "🚗 МЕТАЛ"
+        color = "🟢" if race_temp < Tc else "🔵"
+        st.metric("Стан матеріалу", f"{color} {state}")
+        st.metric("Критична температура", f"{Tc} K")
+        st.metric("Поточна температура", f"{race_temp} K")
+    
+    st.markdown("---")
+    
+    # Гоночная трасса
+    if 'race_started' in st.session_state and st.session_state.race_started:
+        st.subheader("🏁 ГОНКА ТРИВАЄ!")
+        
+        # Создаем две колонки для трасс
+        race_col1, race_col2 = st.columns(2)
+        
+        with race_col1:
+            st.markdown("### 🏎️ НАДПРОВІДНИК")
+            st.markdown("**Супер-шосе без опору!** 🛣️")
+            
+            # Анимация гоночной трассы
+            progress_super = st.progress(0)
+            status_super = st.empty()
+            
+            # Расчет скорости для сверхпроводника
+            t_race = np.linspace(0, 5, 50)
+            j_super = calculate_superconducting_current(t_race, race_field, race_E0, 1.0, 5.0, 0.0, race_temp)
+            
+            # Анимация движения
+            for i in range(len(t_race)):
+                progress = int((i / len(t_race)) * 100)
+                progress_super.progress(progress)
+                speed = abs(j_super[i]) if i < len(j_super) else abs(j_super[-1])
+                status_super.markdown(f"**Швидкість: {speed:.2e} А/м²** 🚀")
+                
+                # Визуализация трассы
+                track_html = f"""
+                <div style="background: linear-gradient(90deg, #ff4444 {progress}%, #333333 {progress}%); 
+                          height: 50px; border-radius: 10px; margin: 10px 0; position: relative;">
+                    <div style="position: absolute; left: {progress}%; top: -10px; font-size: 30px;">🏎️</div>
+                </div>
+                """
+                st.markdown(track_html, unsafe_allow_html=True)
+                
+                time.sleep(0.1)
+                if i == len(t_race) - 1:
+                    st.success("🎉 ФІНІШ! Електрони летять без опору!")
+        
+        with race_col2:
+            st.markdown("### 🚗 ЗВИЧАЙНИЙ МЕТАЛ")
+            st.markdown("**Міські пробки з опором!** 🚦")
+            
+            progress_metal = st.progress(0)
+            status_metal = st.empty()
+            
+            # Расчет скорости для металла
+            j_metal = calculate_normal_current_drude(t_race, race_field, race_temp, race_E0, 1.0, 5.0, 0.0)
+            
+            # Анимация движения с "препятствиями"
+            for i in range(len(t_race)):
+                progress = int((i / len(t_race)) * 100)
+                progress_metal.progress(min(progress, 85))  # Метал никогда не достигает 100%
+                speed = abs(j_metal[i]) if i < len(j_metal) else abs(j_metal[-1])
+                status_metal.markdown(f"**Швидкість: {speed:.2e} А/м²** 🐢")
+                
+                # Визуализация трассы с препятствиями
+                obstacles = "🚧" * (i % 3)  # Периодические препятствия
+                track_html = f"""
+                <div style="background: linear-gradient(90deg, #4444ff {min(progress, 85)}%, #333333 {min(progress, 85)}%); 
+                          height: 50px; border-radius: 10px; margin: 10px 0; position: relative;">
+                    <div style="position: absolute; left: {min(progress, 85)}%; top: -10px; font-size: 30px;">🚗</div>
+                    <div style="position: absolute; left: 70%; top: 5px; font-size: 20px;">{obstacles}</div>
+                </div>
+                """
+                st.markdown(track_html, unsafe_allow_html=True)
+                
+                time.sleep(0.1)
+                if i == len(t_race) - 1:
+                    st.warning("⏹️ ЗУПИНКА! Електрони зупинилися через опір!")
+        
+        st.markdown("---")
+        
+        # Сравнительная статистика
+        st.subheader("📈 Результати гонки")
+        col_stat1, col_stat2, col_stat3 = st.columns(3)
+        
+        with col_stat1:
+            max_super = np.max(np.abs(j_super))
+            max_metal = np.max(np.abs(j_metal))
+            st.metric("Макс. швидкість", f"{max_super:.2e} А/м²", 
+                     f"{(max_super/max_metal if max_metal > 0 else '∞')}x швидше" if race_temp < Tc else "Однаково")
+        
+        with col_stat2:
+            final_super = j_super[-1]
+            final_metal = j_metal[-1]
+            st.metric("Фінальна швидкість", f"{final_super:.2e} А/м²", 
+                     f"{(final_super/final_metal if final_metal > 0 else '∞')}x" if race_temp < Tc else "Однаково")
+        
+        with col_stat3:
+            if race_temp < Tc:
+                st.success("🏆 ПЕРЕМОГА НАДПРОВІДНИКА!")
+                st.balloons()
+            else:
+                st.info("🤝 НІЧИЯ! Обидва мають опір")
+        
+        if st.button("🔄 Нова гонка", use_container_width=True):
+            st.session_state.race_started = False
+            st.rerun()
+    
+    else:
+        # Экран перед стартом
+        st.subheader("🎮 Інструкція до гри:")
+        
+        col_help1, col_help2 = st.columns(2)
+        
+        with col_help1:
+            st.markdown("""
+            ### 🏎️ Надпровідник (T < 9.2K):
+            - **Без опору** - електрони летять вільно
+            - **Швидкість зростає** - без обмежень
+            - **Фініш на максимумі** - без втрат енергії
+            """)
+        
+        with col_help2:
+            st.markdown("""
+            ### 🚗 Звичайний метал (T ≥ 9.2K):
+            - **Є опір** - електрони "тормозять"
+            - **Швидкість обмежена** - насичення
+            - **Не досягає фінішу** - енергія втрачається
+            """)
+        
+        st.markdown("""
+        ### 🎯 Порада:
+        Встановіть температуру **нижче 9.2K** щоб побачити справжню силу надпровідника!
+        """)
+    
+    # Образовательный раздел
+    with st.expander("📚 Пояснення фізики гонки"):
+        st.markdown(f"""
+        **Чому надпровідник швидший?**
+        
+        - **Надпровідник (T < {Tc}K)**: Відповідно до рівнянь Лондонів, струм росте необмежено:
+          ```
+          dj/dt = (e²·n_s/m)·E
+          ```
+          Жодних втрат енергії!
+        
+        - **Звичайний метал (T ≥ {Tc}K)**: Модель Друде з часом релаксації:
+          ```
+          dj/dt = -j/τ + σ·E
+          ```
+          Електрони "зіштовхуються" з атомами решітки (правило Матіссена)
+        
+        **Результат**: Надпровідник завжди виграє гонку при низьких температурах! 🏆
+        """)
+
 
 # =============================================================================
 # ОСНОВНА СТОРІНКА
@@ -1031,7 +1212,8 @@ def main():
         st.title("🧪 Навігація")
         page = st.radio("Оберіть сторінку:", [
             "🧪 Основна сторінка",
-            "🎬 Анімації та демонстрації"
+            "🎬 Анімації та демонстрації",
+            "🏎️ Електронні Гонки" 
         ])
     
     # Вибір сторінки
@@ -1043,202 +1225,12 @@ def main():
 if __name__ == "__main__":
     main()
 
-# =============================================================================
-# ІНТЕРАКТИВНІ ГОНКИ
-# =============================================================================
-def racing_page():
-    st.header("🏎️ Електронні Гонки - Надпровідник vs Метал")
-    
-    st.markdown("""
-    ### 🎯 Мета гри:
-    Побачити різницю між надпровідником та звичайним металом через гонку електронів!
-    """)
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader("🚦 Параметри гонки")
-        
-        race_temp = st.slider("Температура (K)", 1.0, 18.0, 4.2, 0.1, key="race_temp")
-        race_field = st.selectbox("Тип поля:", ["Статичне", "Лінійне", "Синусоїдальне"], key="race_field")
-        race_E0 = st.slider("Потужність поля E₀", 0.1, 10.0, 1.0, 0.1, key="race_E0")
-        
-        if st.button("🎮 Старт гонки!", use_container_width=True):
-            st.session_state.race_started = True
-            st.session_state.race_time = 0
-    
-    with col2:
-        st.subheader("📊 Стан системи")
-        state = "🏎️ НАДПРОВІДНИК" if race_temp < Tc else "🚗 МЕТАЛ"
-        color = "🟢" if race_temp < Tc else "🔵"
-        st.metric("Стан матеріалу", f"{color} {state}")
-        st.metric("Критична температура", f"{Tc} K")
-        st.metric("Поточна температура", f"{race_temp} K")
-    
-    st.markdown("---")
-    
-    # Гоночная трасса
-    if 'race_started' in st.session_state and st.session_state.race_started:
-        st.subheader("🏁 ГОНКА ТРИВАЄ!")
-        
-        # Создаем две колонки для трасс
-        race_col1, race_col2 = st.columns(2)
-        
-        with race_col1:
-            st.markdown("### 🏎️ НАДПРОВІДНИК")
-            st.markdown("**Супер-шосе без опору!** 🛣️")
-            
-            # Анимация гоночной трассы
-            progress_super = st.progress(0)
-            status_super = st.empty()
-            
-            # Расчет скорости для сверхпроводника
-            t_race = np.linspace(0, 5, 50)
-            j_super = calculate_superconducting_current(t_race, race_field, race_E0, 1.0, 5.0, 0.0, race_temp)
-            
-            # Анимация движения
-            for i in range(len(t_race)):
-                progress = int((i / len(t_race)) * 100)
-                progress_super.progress(progress)
-                speed = abs(j_super[i]) if i < len(j_super) else abs(j_super[-1])
-                status_super.markdown(f"**Швидкість: {speed:.2e} А/м²** 🚀")
-                
-                # Визуализация трассы
-                track_html = f"""
-                <div style="background: linear-gradient(90deg, #ff4444 {progress}%, #333333 {progress}%); 
-                          height: 50px; border-radius: 10px; margin: 10px 0; position: relative;">
-                    <div style="position: absolute; left: {progress}%; top: -10px; font-size: 30px;">🏎️</div>
-                </div>
-                """
-                st.markdown(track_html, unsafe_allow_html=True)
-                
-                time.sleep(0.1)
-                if i == len(t_race) - 1:
-                    st.success("🎉 ФІНІШ! Електрони летять без опору!")
-        
-        with race_col2:
-            st.markdown("### 🚗 ЗВИЧАЙНИЙ МЕТАЛ")
-            st.markdown("**Міські пробки з опором!** 🚦")
-            
-            progress_metal = st.progress(0)
-            status_metal = st.empty()
-            
-            # Расчет скорости для металла
-            j_metal = calculate_normal_current_drude(t_race, race_field, race_temp, race_E0, 1.0, 5.0, 0.0)
-            
-            # Анимация движения с "препятствиями"
-            for i in range(len(t_race)):
-                progress = int((i / len(t_race)) * 100)
-                progress_metal.progress(min(progress, 85))  # Метал никогда не достигает 100%
-                speed = abs(j_metal[i]) if i < len(j_metal) else abs(j_metal[-1])
-                status_metal.markdown(f"**Швидкість: {speed:.2e} А/м²** 🐢")
-                
-                # Визуализация трассы с препятствиями
-                obstacles = "🚧" * (i % 3)  # Периодические препятствия
-                track_html = f"""
-                <div style="background: linear-gradient(90deg, #4444ff {min(progress, 85)}%, #333333 {min(progress, 85)}%); 
-                          height: 50px; border-radius: 10px; margin: 10px 0; position: relative;">
-                    <div style="position: absolute; left: {min(progress, 85)}%; top: -10px; font-size: 30px;">🚗</div>
-                    <div style="position: absolute; left: 70%; top: 5px; font-size: 20px;">{obstacles}</div>
-                </div>
-                """
-                st.markdown(track_html, unsafe_allow_html=True)
-                
-                time.sleep(0.1)
-                if i == len(t_race) - 1:
-                    st.warning("⏹️ ЗУПИНКА! Електрони зупинилися через опір!")
-        
-        st.markdown("---")
-        
-        # Сравнительная статистика
-        st.subheader("📈 Результати гонки")
-        col_stat1, col_stat2, col_stat3 = st.columns(3)
-        
-        with col_stat1:
-            max_super = np.max(np.abs(j_super))
-            max_metal = np.max(np.abs(j_metal))
-            st.metric("Макс. швидкість", f"{max_super:.2e} А/м²", 
-                     f"{(max_super/max_metal if max_metal > 0 else '∞')}x швидше" if race_temp < Tc else "Однаково")
-        
-        with col_stat2:
-            final_super = j_super[-1]
-            final_metal = j_metal[-1]
-            st.metric("Фінальна швидкість", f"{final_super:.2e} А/м²", 
-                     f"{(final_super/final_metal if final_metal > 0 else '∞')}x" if race_temp < Tc else "Однаково")
-        
-        with col_stat3:
-            if race_temp < Tc:
-                st.success("🏆 ПЕРЕМОГА НАДПРОВІДНИКА!")
-                st.balloons()
-            else:
-                st.info("🤝 НІЧИЯ! Обидва мають опір")
-        
-        if st.button("🔄 Нова гонка", use_container_width=True):
-            st.session_state.race_started = False
-            st.rerun()
-    
-    else:
-        # Экран перед стартом
-        st.subheader("🎮 Інструкція до гри:")
-        
-        col_help1, col_help2 = st.columns(2)
-        
-        with col_help1:
-            st.markdown("""
-            ### 🏎️ Надпровідник (T < 9.2K):
-            - **Без опору** - електрони летять вільно
-            - **Швидкість зростає** - без обмежень
-            - **Фініш на максимумі** - без втрат енергії
-            """)
-        
-        with col_help2:
-            st.markdown("""
-            ### 🚗 Звичайний метал (T ≥ 9.2K):
-            - **Є опір** - електрони "тормозять"
-            - **Швидкість обмежена** - насичення
-            - **Не досягає фінішу** - енергія втрачається
-            """)
-        
-        st.markdown("""
-        ### 🎯 Порада:
-        Встановіть температуру **нижче 9.2K** щоб побачити справжню силу надпровідника!
-        """)
-    
-    # Образовательный раздел
-    with st.expander("📚 Пояснення фізики гонки"):
-        st.markdown(f"""
-        **Чому надпровідник швидший?**
-        
-        - **Надпровідник (T < {Tc}K)**: Відповідно до рівнянь Лондонів, струм росте необмежено:
-          ```
-          dj/dt = (e²·n_s/m)·E
-          ```
-          Жодних втрат енергії!
-        
-        - **Звичайний метал (T ≥ {Tc}K)**: Модель Друде з часом релаксації:
-          ```
-          dj/dt = -j/τ + σ·E
-          ```
-          Електрони "зіштовхуються" з атомами решітки (правило Матіссена)
-        
-        **Результат**: Надпровідник завжди виграє гонку при низьких температурах! 🏆
-        """)
 
-# Добавьте эту страницу в навигацию:
-def main():
-    st.set_page_config(page_title="Моделювання струму", layout="wide")
-    
-    with st.sidebar:
-        st.title("🧪 Навігація")
-        page = st.radio("Оберіть сторінку:", [
-            "🧪 Основна сторінка",
-            "🎬 Анімації та демонстрації", 
-            "🏎️ Електронні Гонки"  # ← ДОБАВЬТЕ ЭТУ СТРОЧКУ!
-        ])
+
     
     if page == "🧪 Основна сторінка":
         main_page()
     elif page == "🎬 Анімації та демонстрації":
         animations_page()
-    elif page == "🏎️ Електронні Гонки":  # ← И ЭТУ СТРОЧКУ!
+    elif page == "🏎️ Електронні Гонки":  
         racing_page()

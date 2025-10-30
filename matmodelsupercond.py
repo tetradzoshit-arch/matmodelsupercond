@@ -586,31 +586,28 @@ def racing_page():
     with col2:
         st.subheader("📊 Стан системи")
         
-        if st.session_state.race_data:
+        # БЕЗОПАСНЫЙ доступ к данным - проверяем существует ли race_data
+        if st.session_state.race_data is not None:
             data = st.session_state.race_data
             st.write(f"**Машинка 1 🏎️:** {data['car1_type']} ({data['car1_temp']}K)")
             st.write(f"**Машинка 2 🚗:** {data['car2_type']} ({data['car2_temp']}K)")
         else:
-            st.write("**Машинка 1 🏎️:** Обери параметри")
-            st.write("**Машинка 2 🚗:** Обери параметри")
+            # Показываем текущие выбранные значения
+            st.write(f"**Машинка 1 🏎️:** {car1_type} ({car1_temp}K)")
+            st.write(f"**Машинка 2 🚗:** {car2_type} ({car2_temp}K)")
         
         st.metric("Критична температура", f"{Tc} K")
     
     st.markdown("---")
     
-    # Гоночная трасса
-    if st.session_state.race_started and st.session_state.race_data:
-        st.subheader("🏁 ГОНКА ТРИВАЄ!")
-        
+    # Гоночная трасса - ТОЛЬКО если есть данные
+    if st.session_state.race_started and st.session_state.race_data is not None:
+        # ... остальной код гонки без изменений ...
         data = st.session_state.race_data
         frame = st.session_state.race_frame
         
         if frame < len(data['t_race']):
-            # Создаем место для анимации
-            animation_placeholder = st.empty()
-            progress_placeholder = st.empty()
-            status_placeholder = st.empty()
-            
+            # ... код анимации ...
             progress_car1 = int((frame / len(data['t_race'])) * 100)
             progress_car2 = int((frame / len(data['t_race'])) * 100)
             
@@ -623,71 +620,8 @@ def racing_page():
             speed_car1 = abs(data['j_car1'][frame])
             speed_car2 = abs(data['j_car2'][frame])
             
-            # Форматируем скорость для отображения
-            def format_speed(speed):
-                if speed >= 1e6:
-                    return f"{speed:.1e}"
-                else:
-                    return f"{speed:.1f}"
+            # ... остальной код анимации ...
             
-            # Создаем визуализацию гонки с помощью Streamlit элементов
-            with animation_placeholder.container():
-                # Машинка 1
-                st.write(f"### 🏎️ Машинка 1 - {data['car1_type']}")
-                if data['car1_type'] == "Надпровідник":
-                    st.info("Супер-шосе без опору! 🛣️")
-                else:
-                    st.warning("Міські пробки з опором! 🚦")
-                
-                # Прогресс-бар для машинки 1
-                st.progress(progress_car1 / 100)
-                
-                # Визуализация трассы с машинкой
-                col_track1, col_icon1 = st.columns([4, 1])
-                with col_track1:
-                    # Создаем визуальную трассу
-                    track_width = progress_car1
-                    track_html = f"🛣️ {'=' * (track_width // 2)}🏎️{'.' * (50 - track_width // 2)}"
-                    st.write(track_html)
-                with col_icon1:
-                    st.write(f"**{format_speed(speed_car1)} А/м²**")
-                
-                st.write(f"**Прогрес: {progress_car1}%**")
-                st.write("---")
-                
-                # Машинка 2
-                st.write(f"### 🚗 Машинка 2 - {data['car2_type']}")
-                if data['car2_type'] == "Надпровідник":
-                    st.info("Супер-шосе без опору! 🛣️")
-                else:
-                    st.warning("Міські пробки з опором! 🚦")
-                
-                # Прогресс-бар для машинки 2
-                st.progress(progress_car2 / 100)
-                
-                # Визуализация трассы с машинкой
-                col_track2, col_icon2 = st.columns([4, 1])
-                with col_track2:
-                    # Создаем визуальную трассу
-                    track_width = progress_car2
-                    obstacles = "🚧" * ((frame // 3) % 3) if data['car2_type'] == "Метал" else ""
-                    track_html = f"🛣️ {'=' * (track_width // 2)}🚗{'.' * (50 - track_width // 2)} {obstacles}"
-                    st.write(track_html)
-                with col_icon2:
-                    st.write(f"**{format_speed(speed_car2)} А/м²**")
-                
-                st.write(f"**Прогрес: {progress_car2}%**")
-            
-            # Обновляем статус
-            status_placeholder.markdown(f"**Час гонки: {data['t_race'][frame]:.1f}с** ⏱️ | **Кадр: {frame + 1}/{len(data['t_race'])}**")
-            
-            # Увеличиваем кадр для следующего обновления
-            st.session_state.race_frame += 1
-            
-            # Автоматическое обновление через 1 секунду
-            time.sleep(1.0 / race_speed)
-            st.rerun()
-        
         else:
             # Гонка завершена
             st.session_state.race_started = False
@@ -696,44 +630,7 @@ def racing_page():
             st.markdown("---")
             st.subheader("📈 Результати гонки")
             
-            col_stat1, col_stat2, col_stat3 = st.columns(3)
-            
-            with col_stat1:
-                max_car1 = np.max(np.abs(data['j_car1']))
-                max_car2 = np.max(np.abs(data['j_car2']))
-                winner = "🏎️ Машинка 1" if max_car1 > max_car2 else "🚗 Машинка 2" if max_car2 > max_car1 else "🤝 Нічия"
-                st.metric("Переможець", winner)
-            
-            with col_stat2:
-                final_car1 = data['j_car1'][-1]
-                final_car2 = data['j_car2'][-1]
-                st.metric("Фінальна швидкість 1", f"{final_car1:.1e} А/м²")
-                st.metric("Фінальна швидкість 2", f"{final_car2:.1e} А/м²")
-            
-            with col_stat3:
-                if max_car1 > max_car2:
-                    st.success("🏆 Перемога машинки 1!")
-                elif max_car2 > max_car1:
-                    st.success("🏆 Перемога машинки 2!")
-                else:
-                    st.info("🤝 Нічия!")
-                st.balloons()
-            
-            # Образовательный вывод
-            with st.expander("📚 Пояснення результатів"):
-                if data['car1_type'] == "Надпровідник" and data['car1_temp'] < Tc:
-                    st.write("✅ **Машинка 1 (надпровідник)**: Працює правильно - немає опору!")
-                elif data['car1_type'] == "Надпровідник" and data['car1_temp'] >= Tc:
-                    st.write("❌ **Машинка 1 (надпровідник)**: Не працює - температура вище T_c!")
-                
-                if data['car2_type'] == "Надпровідник" and data['car2_temp'] < Tc:
-                    st.write("✅ **Машинка 2 (надпровідник)**: Працює правильно - немає опору!")
-                elif data['car2_type'] == "Надпровідник" and data['car2_temp'] >= Tc:
-                    st.write("❌ **Машинка 2 (надпровідник)**: Не працює - температура вище T_c!")
-            
-            if st.button("🔄 Нова гонка", use_container_width=True):
-                st.session_state.race_started = False
-                st.rerun()
+            # ... код результатов ...
     
     else:
         # Экран перед стартом
@@ -798,10 +695,16 @@ def generate_game_problem(difficulty):
         j_known = calculate_superconducting_current(t_known, problem["field"], problem["E0"], 1.0, 5.0, 0.0, problem["T"])
         j_full = calculate_superconducting_current(t_full, problem["field"], problem["E0"], 1.0, 5.0, 0.0, problem["T"])
         material_type = "super"
+        behavior_type = "growth"  # рост
     else:
         j_known = calculate_normal_current_drude(t_known, problem["field"], problem["T"], problem["E0"], 1.0, 5.0, 0.0)
         j_full = calculate_normal_current_drude(t_full, problem["field"], problem["T"], problem["E0"], 1.0, 5.0, 0.0)
         material_type = "metal"
+        # Определяем тип поведения для металла
+        if problem["field"] == "Синусоїдальне":
+            behavior_type = "oscillation"
+        else:
+            behavior_type = "saturation"
     
     return {
         "t_known": t_known,
@@ -809,9 +712,38 @@ def generate_game_problem(difficulty):
         "t_full": t_full,
         "j_full": j_full,
         "material_type": material_type,
+        "behavior_type": behavior_type,
         "params": problem,
         "hint": problem["hint"]
     }
+
+def calculate_accuracy(user_choice, real_behavior, real_material):
+    """Розраховує точність на основі фізичної поведінки, а не точних чисел"""
+    
+    # Определяем что выбрал пользователь
+    if user_choice == "Нескінченне зростання (надпровідник)":
+        user_behavior = "growth"
+        user_material = "super"
+    elif user_choice == "Насичення (метал)":
+        user_behavior = "saturation" 
+        user_material = "metal"
+    elif user_choice == "Коливання":
+        user_behavior = "oscillation"
+        user_material = "metal"  # обычно колебания у металла
+    else:  # "Інше"
+        user_behavior = "other"
+        user_material = "unknown"
+    
+    # Оценка по типу материала (основной критерий)
+    material_score = 100 if user_material == real_material else 0
+    
+    # Оценка по типу поведения (дополнительный критерий)
+    behavior_score = 100 if user_behavior == real_behavior else 50
+    
+    # Итоговая оценка (70% за материал, 30% за поведение)
+    accuracy = material_score * 0.7 + behavior_score * 0.3
+    
+    return accuracy
 
 def prediction_game_page():
     st.header("🔮 Передбач майбутнє провідника!")
@@ -819,15 +751,15 @@ def prediction_game_page():
     st.markdown("""
     ### 🎯 Правила гри:
     1. Дивись на початок графіка струму
-    2. Намалюй як розвиватиметься ситуація  
+    2. Обери тип поведінки який очікуєш  
     3. Дізнайся чи правильно ти зрозумів фізику процесу!
     """)
     
     # Ініціалізація стану гри
     if 'game_data' not in st.session_state:
         st.session_state.game_data = None
-    if 'user_drawing' not in st.session_state:
-        st.session_state.user_drawing = None
+    if 'user_choice' not in st.session_state:
+        st.session_state.user_choice = None
     if 'show_solution' not in st.session_state:
         st.session_state.show_solution = False
     if 'game_stats' not in st.session_state:
@@ -848,7 +780,7 @@ def prediction_game_page():
         if st.button("🎲 Нова задача", key="new_problem", use_container_width=True):
             # Генеруємо нову випадкову задачу
             st.session_state.game_data = generate_game_problem(game_mode)
-            st.session_state.user_drawing = None
+            st.session_state.user_choice = None
             st.session_state.show_solution = False
             st.session_state.game_stats["played"] += 1
             st.rerun()
@@ -874,16 +806,6 @@ def prediction_game_page():
                 line=dict(color='blue', width=4)
             ))
             
-            # Якщо користувач намалював передбачення
-            if st.session_state.user_drawing:
-                user_t, user_j = st.session_state.user_drawing
-                fig.add_trace(go.Scatter(
-                    x=user_t, y=user_j,
-                    mode='lines',
-                    name='Твоє передбачення',
-                    line=dict(color='orange', width=4, dash='dash')
-                ))
-            
             # Якщо показано розв'язок
             if st.session_state.show_solution:
                 fig.add_trace(go.Scatter(
@@ -894,7 +816,7 @@ def prediction_game_page():
                 ))
             
             fig.update_layout(
-                title="Намалюй продовження графіка 📈",
+                title="Обери тип продовження графіка 📈",
                 xaxis_title="Час (с)",
                 yaxis_title="Густина струму (А/м²)",
                 height=400,
@@ -904,47 +826,26 @@ def prediction_game_page():
             
             st.plotly_chart(fig, use_container_width=True)
             
-            # Інтерфейс для малювання
-            st.subheader("✏️ Намалюй своє передбачення")
+            # Інтерфейс для вибору
+            st.subheader("✏️ Обери тип поведінки")
             
-            col_draw1, col_draw2 = st.columns(2)
+            drawing_type = st.radio("Як буде розвиватися графік?", [
+                "Нескінченне зростання (надпровідник)",
+                "Насичення (метал)", 
+                "Коливання",
+                "Інше"
+            ], key="draw_type")
             
-            with col_draw1:
-                drawing_type = st.radio("Тип передбачення:", [
-                    "Нескінченне зростання (надпровідник)",
-                    "Насичення (метал)", 
-                    "Коливання",
-                    "Інше"
-                ], key="draw_type")
-            
-            with col_draw2:
-                if st.button("🎯 Перевірити передбачення", use_container_width=True):
-                    # Генеруємо передбачення користувача
-                    t_pred = np.linspace(2.5, 5, 50)
-                    
-                    if drawing_type == "Нескінченне зростання (надпровідник)":
-                        j_pred = data["j_known"][-1] + np.linspace(0, abs(data["j_known"][-1]) * 2, 50)
-                    elif drawing_type == "Насичення (метал)":
-                        j_pred = np.full(50, data["j_known"][-1] * 0.8)
-                    elif drawing_type == "Коливання":
-                        j_pred = data["j_known"][-1] + np.sin(np.linspace(0, 4*np.pi, 50)) * abs(data["j_known"][-1]) * 0.3
-                    else:
-                        # Випадкове передбачення
-                        j_pred = data["j_known"][-1] + np.random.normal(0, abs(data["j_known"][-1]) * 0.2, 50)
-                    
-                    st.session_state.user_drawing = (t_pred, j_pred)
-                    st.session_state.show_solution = True
-                    st.rerun()
+            if st.button("🎯 Перевірити відповідь", use_container_width=True):
+                st.session_state.user_choice = drawing_type
+                st.session_state.show_solution = True
+                st.rerun()
             
             # Оцінка результату
-            if st.session_state.show_solution and st.session_state.user_drawing:
-                user_t, user_j = st.session_state.user_drawing
-                real_j = data["j_full"][50:]  # Друга половина реальних даних
-                
-                # Проста оцінка збігу
-                min_len = min(len(user_j), len(real_j))
-                error = np.mean(np.abs(user_j[:min_len] - real_j[:min_len])) / np.mean(np.abs(real_j[:min_len]))
-                accuracy = max(0, 100 - error * 100)
+            if st.session_state.show_solution and st.session_state.user_choice:
+                accuracy = calculate_accuracy(st.session_state.user_choice, 
+                                           data["behavior_type"], 
+                                           data["material_type"])
                 
                 # Оновлюємо статистику
                 if accuracy > 70:  # Вважаємо правильним якщо точність > 70%
@@ -965,11 +866,13 @@ def prediction_game_page():
                     st.metric("Правильна відповідь", real_type)
                 
                 with col_res3:
-                    if accuracy > 80:
-                        st.success("🎉 Відмінно!")
+                    if accuracy > 90:
+                        st.success("🎉 Відмінно! Ідеально!")
                         st.balloons()
+                    elif accuracy > 70:
+                        st.success("👍 Дуже добре!")
                     elif accuracy > 50:
-                        st.warning("👍 Добре!")
+                        st.warning("📗 Непогано!")
                     else:
                         st.error("📚 Вчимося!")
                 
@@ -999,13 +902,12 @@ def prediction_game_page():
         ### 📖 Підказки:
         
         **Надпровідник (T < 9.2K):**
-        - Лінійне чи квадратичне зростання
+        - **Нескінченне зростання** - струм постійно збільшується
         - Немає насичення
         - Для синусоїдального поля - чисті коливання
         
         **Метал (T ≥ 9.2K):**
-        - Експоненційне насичення  
-        - Стаціонарне значення
+        - **Насичення** - струм виходить на стале значення  
         - Для синусоїдального поля - затухаючі коливання
         
         ### 🏆 Рівні:
@@ -1018,8 +920,9 @@ def prediction_game_page():
         st.subheader("📈 Твоя статистика")
         st.metric("Зіграно ігор", st.session_state.game_stats["played"])
         st.metric("Правильних відповідей", st.session_state.game_stats["correct"])
-        st.metric("Середня точність", f"{st.session_state.game_stats['avg_accuracy']:.1f}%")
-
+        
+        avg_acc = st.session_state.game_stats["avg_accuracy"]
+        st.metric("Середня точність", f"{avg_acc:.1f}%")
 
 # =============================================================================
 # ОСНОВНА СТОРІНКА

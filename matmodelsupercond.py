@@ -1206,6 +1206,134 @@ def main_page():
                 st.dataframe(pd.DataFrame(physical_analyses), use_container_width=True, height=200)
                 
                 st.header("🧮 Математичний аналіз")
+                # В функції main_page() знайдіть розділ "Збережені графіки" та додайте:
+    with col1:
+        if comparison_mode == "Збережені графіки":
+            st.header("📊 Збережені графіки")
+            
+            if not st.session_state.saved_plots:
+                st.info("Немає збережених графіків. Збережіть графіки в інших режимах.")
+            else:
+                fig_saved = go.Figure()
+                physical_analyses_saved = []
+                math_analyses_saved = []
+                
+                for i, plot_data in enumerate(st.session_state.saved_plots):
+                    if plot_data['state'] == 'Надпровідник':
+                        fig_saved.add_trace(go.Scatter(
+                            x=plot_data['t'], y=plot_data['j_data'], 
+                            name=f"Надпровідник {i+1} (T={plot_data['temperature']}K)",
+                            line=dict(width=2), opacity=0.7
+                        ))
+                        # Аналіз для надпровідника
+                        physical_analyses_saved.append(
+                            analyze_physical_characteristics(
+                                plot_data['t'], plot_data['j_data'], 
+                                'Надпровідник', 
+                                plot_data['field_type'], 
+                                plot_data['temperature'],
+                                plot_data.get('omega', 1.0)
+                            )
+                        )
+                        math_analyses_saved.append(
+                            analyze_mathematical_characteristics(
+                                plot_data['t'], plot_data['j_data'],
+                                'Надпровідник',
+                                plot_data['field_type'],
+                                plot_data.get('omega', 1.0)
+                            )
+                        )
+                        
+                    elif plot_data['state'] == 'Звичайний стан':
+                        fig_saved.add_trace(go.Scatter(
+                            x=plot_data['t'], y=plot_data['j_data'],
+                            name=f"Звичайний стан {i+1} (T={plot_data['temperature']}K, {plot_data['model']})",
+                            line=dict(width=2), opacity=0.7
+                        ))
+                        # Аналіз для звичайного стану
+                        physical_analyses_saved.append(
+                            analyze_physical_characteristics(
+                                plot_data['t'], plot_data['j_data'],
+                                'Звичайний стан',
+                                plot_data['field_type'],
+                                plot_data['temperature'],
+                                plot_data.get('omega', 1.0)
+                            )
+                        )
+                        math_analyses_saved.append(
+                            analyze_mathematical_characteristics(
+                                plot_data['t'], plot_data['j_data'],
+                                'Звичайний стан',
+                                plot_data['field_type'],
+                                plot_data.get('omega', 1.0)
+                            )
+                        )
+                        
+                    elif plot_data['state'] == 'Порівняння':
+                        fig_saved.add_trace(go.Scatter(
+                            x=plot_data['t'], y=plot_data['j_super'], 
+                            name=f"Надпровідник {i+1}", line=dict(width=2), opacity=0.7
+                        ))
+                        fig_saved.add_trace(go.Scatter(
+                            x=plot_data['t'], y=plot_data['j_normal'], 
+                            name=f"Звичайний стан {i+1}", line=dict(width=2), opacity=0.7
+                        ))
+                        # Аналіз для порівняння
+                        physical_analyses_saved.append(
+                            analyze_physical_characteristics(
+                                plot_data['t'], plot_data['j_super'],
+                                'Надпровідник',
+                                plot_data['field_type'],
+                                plot_data['temperature'],
+                                plot_data.get('omega', 1.0)
+                            )
+                        )
+                        physical_analyses_saved.append(
+                            analyze_physical_characteristics(
+                                plot_data['t'], plot_data['j_normal'],
+                                'Звичайний стан',
+                                plot_data['field_type'],
+                                plot_data['temperature'],
+                                plot_data.get('omega', 1.0)
+                            )
+                        )
+                        math_analyses_saved.append(
+                            analyze_mathematical_characteristics(
+                                plot_data['t'], plot_data['j_super'],
+                                'Надпровідник',
+                                plot_data['field_type'],
+                                plot_data.get('omega', 1.0)
+                            )
+                        )
+                        math_analyses_saved.append(
+                            analyze_mathematical_characteristics(
+                                plot_data['t'], plot_data['j_normal'],
+                                'Звичайний стан',
+                                plot_data['field_type'],
+                                plot_data.get('omega', 1.0)
+                            )
+                        )
+                
+                fig_saved.update_layout(
+                    title="Усі збережені графіки",
+                    xaxis_title="Час (с)",
+                    yaxis_title="Густина струму (А/м²)",
+                    height=600,
+                    showlegend=True
+                )
+                fig_saved.update_yaxes(tickformat=".2e")
+                st.plotly_chart(fig_saved, use_container_width=True)
+                
+                # Додаємо таблиці аналізу
+                if physical_analyses_saved:
+                    st.header("📊 Фізичний аналіз збережених графіків")
+                    st.dataframe(pd.DataFrame(physical_analyses_saved), use_container_width=True, height=300)
+                    
+                if math_analyses_saved:
+                    st.header("🧮 Математичний аналіз збережених графіків")
+                    st.dataframe(pd.DataFrame(math_analyses_saved), use_container_width=True, height=300)
+        
+        else:
                 if len(math_analyses) == 2:
                     col_math1, col_math2 = st.columns(2)
                     with col_math1:

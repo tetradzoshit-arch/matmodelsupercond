@@ -8,6 +8,9 @@ import tempfile
 import os
 from reportlab.lib.utils import ImageReader
 import time
+from plotly.subplots import make_subplots
+import json
+import random
 
 # ФІЗИЧНІ КОНСТАНТИ ДЛЯ НІОБІЮ
 e = 1.602e-19  # Кл
@@ -511,6 +514,14 @@ def run_field_comparison_animation():
 def racing_page():
     st.header("🏎️ Електронні Гонки - Надпровідник vs Метал")
     
+    # Инициализация состояния гонки
+    if 'race_started' not in st.session_state:
+        st.session_state.race_started = False
+    if 'race_frame' not in st.session_state:
+        st.session_state.race_frame = 0
+    if 'race_data' not in st.session_state:
+        st.session_state.race_data = None
+    
     st.markdown("""
     ### 🎯 Мета гри:
     Побачити різницю між надпровідником та звичайним металом через гонку електронів!
@@ -523,12 +534,25 @@ def racing_page():
         
         race_temp = st.slider("Температура (K)", 1.0, 18.0, 4.2, 0.1, key="race_temp")
         race_field = st.selectbox("Тип поля:", ["Статичне", "Лінійне", "Синусоїдальне"], key="race_field")
-        race_E0 = st.slider("Потужність поля E₀", 0.1, 2.0, 0.5, 0.1, key="race_E0")  # Уменьшил диапазон
+        race_E0 = st.slider("Потужність поля E₀", 0.1, 2.0, 0.5, 0.1, key="race_E0")
         race_speed = st.slider("Швидкість анімації", 0.5, 3.0, 1.0, 0.1, key="race_speed")
         
         if st.button("🎮 Старт гонки!", use_container_width=True):
+            # Подготавливаем данные для гонки
+            t_race = np.linspace(0, 3, 30)
+            j_super = calculate_superconducting_current(t_race, race_field, race_E0, 1.0, 5.0, 0.0, race_temp)
+            j_metal = calculate_normal_current_drude(t_race, race_field, race_temp, race_E0, 1.0, 5.0, 0.0)
+            
+            # Сохраняем данные
+            st.session_state.race_data = {
+                't_race': t_race,
+                'j_super': j_super,
+                'j_metal': j_metal,
+                'race_temp': race_temp
+            }
             st.session_state.race_started = True
             st.session_state.race_frame = 0
+            st.rerun()
     
     with col2:
         st.subheader("📊 Стан системи")
@@ -541,46 +565,30 @@ def racing_page():
     st.markdown("---")
     
     # Гоночная трасса
-    if 'race_started' in st.session_state and st.session_state.race_started:
+    if st.session_state.race_started and st.session_state.race_data:
         st.subheader("🏁 ГОНКА ТРИВАЄ!")
         
-        # Создаем место для анимации
-        animation_placeholder = st.empty()
-        progress_placeholder = st.empty()
-        status_placeholder = st.empty()
-        
-        # Расчет данных для гонки (меньше точек для плавности)
-        t_race = np.linspace(0, 3, 30)  # Уменьшил время и количество точек
-        j_super = calculate_superconducting_current(t_race, race_field, race_E0, 1.0, 5.0, 0.0, race_temp)
-        j_metal = calculate_normal_current_drude(t_race, race_field, race_temp, race_E0, 1.0, 5.0, 0.0)
-        
-        # Нормализуем скорости для отображения (чтобы числа были разумными)
-        max_j = max(np.max(np.abs(j_super)), np.max(np.abs(j_metal)))
-        if max_j > 1e10:
-            scale_factor = 1e-10
-        else:
-            scale_factor = 1
-        
-        # Получаем текущий кадр
+        data = st.session_state.race_data
         frame = st.session_state.race_frame
         
-        if frame < len(t_race):
-            progress_super = int((frame / len(t_race)) * 100)
-            progress_metal = int((frame / len(t_race)) * 80)  # Метал никогда не достигает 100%
+        if frame < len(data['t_race']):
+            # Создаем место для анимации
+            animation_placeholder = st.empty()
+            progress_placeholder = st.empty()
+            status_placeholder = st.empty()
             
-            speed_super = abs(j_super[frame]) * scale_factor
-            speed_metal = abs(j_metal[frame]) * scale_factor
+            progress_super = int((frame / len(data['t_race'])) * 100)
+            progress_metal = int((frame / len(data['t_race'])) * 80)  # Метал никогда не достигает 100%
+            
+            speed_super = abs(data['j_super'][frame])
+            speed_metal = abs(data['j_metal'][frame])
             
             # Форматируем скорость для отображения
-            if speed_super >= 1e6:
-                speed_super_str = f"{speed_super:.1e}"
-            else:
-                speed_super_str = f"{speed_super:.1f}"
-                
-            if speed_metal >= 1e6:
-                speed_metal_str = f"{speed_metal:.1e}"
-            else:
-                speed_metal_str = f"{speed_metal:.1f}"
+            def format_speed(speed):
+                if speed >= 1e6:
+                    return f"{speed:.1e}"
+                else:
+                    return f"{speed:.1f}"
             
             # Создаем HTML для анимации
             race_html = f"""
@@ -589,9 +597,9 @@ def racing_page():
                     <h3 style="color: #ff4444; margin: 0;">🏎️ НАДПРОВІДНИК - Супер-шосе без опору! 🛣️</h3>
                     <div style="background: linear-gradient(90deg, #ff4444 {progress_super}%, #e0e0e0 {progress_super}%); 
                               height: 40px; border-radius: 8px; margin: 10px 0; position: relative; border: 2px solid #cc0000;">
-                        <div style="position: absolute; left: {progress_super}%; top: -20px; font-size: 35px; transform: translateX(-50%); transition: left 0.3s;">🏎️</div>
+                        <div style="position: absolute; left: {progress_super}%; top: -20px; font-size: 35px; transform: translateX(-50%);">🏎️</div>
                     </div>
-                    <p style="margin: 5px 0;"><strong>Швидкість: {speed_super_str} А/м²</strong> 🚀</p>
+                    <p style="margin: 5px 0;"><strong>Швидкість: {format_speed(speed_super)} А/м²</strong> 🚀</p>
                     <p style="margin: 5px 0; font-size: 12px; color: #666;">Прогрес: {progress_super}%</p>
                 </div>
                 
@@ -599,10 +607,10 @@ def racing_page():
                     <h3 style="color: #4444ff; margin: 0;">🚗 ЗВИЧАЙНИЙ МЕТАЛ - Міські пробки з опором! 🚦</h3>
                     <div style="background: linear-gradient(90deg, #4444ff {progress_metal}%, #e0e0e0 {progress_metal}%); 
                               height: 40px; border-radius: 8px; margin: 10px 0; position: relative; border: 2px solid #0000cc;">
-                        <div style="position: absolute; left: {progress_metal}%; top: -20px; font-size: 35px; transform: translateX(-50%); transition: left 0.3s;">🚗</div>
+                        <div style="position: absolute; left: {progress_metal}%; top: -20px; font-size: 35px; transform: translateX(-50%);">🚗</div>
                         <div style="position: absolute; left: 70%; top: 5px; font-size: 20px;">{'🚧' * ((frame // 3) % 3)}</div>
                     </div>
-                    <p style="margin: 5px 0;"><strong>Швидкість: {speed_metal_str} А/м²</strong> 🐢</p>
+                    <p style="margin: 5px 0;"><strong>Швидкість: {format_speed(speed_metal)} А/м²</strong> 🐢</p>
                     <p style="margin: 5px 0; font-size: 12px; color: #666;">Прогрес: {progress_metal}%</p>
                 </div>
             </div>
@@ -612,7 +620,7 @@ def racing_page():
             animation_placeholder.markdown(race_html, unsafe_allow_html=True)
             
             # Обновляем статус
-            status_placeholder.markdown(f"**Час гонки: {t_race[frame]:.1f}с** ⏱️ | **Кадр: {frame + 1}/{len(t_race)}**")
+            status_placeholder.markdown(f"**Час гонки: {data['t_race'][frame]:.1f}с** ⏱️ | **Кадр: {frame + 1}/{len(data['t_race'])}**")
             
             # Обновляем прогресс-бары
             with progress_placeholder.container():
@@ -640,8 +648,8 @@ def racing_page():
             col_stat1, col_stat2, col_stat3 = st.columns(3)
             
             with col_stat1:
-                max_super = np.max(np.abs(j_super)) * scale_factor
-                max_metal = np.max(np.abs(j_metal)) * scale_factor
+                max_super = np.max(np.abs(data['j_super']))
+                max_metal = np.max(np.abs(data['j_metal']))
                 if max_metal > 0:
                     ratio = max_super / max_metal
                     delta = f"{ratio:.1f}x швидше" if ratio > 1 else "Однаково"
@@ -650,8 +658,8 @@ def racing_page():
                 st.metric("Макс. швидкість", f"{max_super:.1e} А/м²", delta)
             
             with col_stat2:
-                final_super = j_super[-1] * scale_factor
-                final_metal = j_metal[-1] * scale_factor
+                final_super = data['j_super'][-1]
+                final_metal = data['j_metal'][-1]
                 if final_metal > 0:
                     ratio = final_super / final_metal
                     delta = f"{ratio:.1f}x" if ratio > 1 else "Однаково"
@@ -660,7 +668,7 @@ def racing_page():
                 st.metric("Фінальна швидкість", f"{final_super:.1e} А/м²", delta)
             
             with col_stat3:
-                if race_temp < Tc:
+                if data['race_temp'] < Tc:
                     st.success("🏆 ПЕРЕМОГА НАДПРОВІДНИКА!")
                     st.balloons()
                 else:
@@ -696,6 +704,254 @@ def racing_page():
         ### 🎯 Порада:
         Встановіть температуру **нижче 9.2K** щоб побачити справжню силу надпровідника!
         """)
+# =============================================================================
+# ПЕРЕДБАЧ МАЙБУТНЄ
+# =============================================================================
+def generate_game_problem(difficulty):
+    """Генерация случайной задачи для игры"""
+    problems = {
+        "easy": [
+            {"field": "Статичне", "T": 4.2, "E0": 1.0, "hint": "Сверхпроводник при низкой температуре"},
+            {"field": "Статичне", "T": 12.0, "E0": 1.0, "hint": "Метал при высокой температуре"}
+        ],
+        "medium": [
+            {"field": "Лінійне", "T": 4.2, "E0": 0.5, "hint": "Сверхпроводник с линейным полем"},
+            {"field": "Синусоїдальне", "T": 12.0, "E0": 2.0, "hint": "Метал с переменным полем"}
+        ],
+        "hard": [
+            {"field": random.choice(["Статичне", "Лінійне", "Синусоїдальне"]), 
+             "T": random.uniform(3.0, 15.0), 
+             "E0": random.uniform(0.3, 3.0),
+             "hint": "Случайные параметры - угадай состояние!"}
+        ]
+    }
+    
+    difficulty_key = "easy" if "Проста" in difficulty else "medium" if "Середня" in difficulty else "hard"
+    problem = random.choice(problems[difficulty_key])
+    
+    # Генерируем данные для первой половины графика
+    t_known = np.linspace(0, 2.5, 50)
+    t_full = np.linspace(0, 5, 100)
+    
+    if problem["T"] < Tc:
+        j_known = calculate_superconducting_current(t_known, problem["field"], problem["E0"], 1.0, 5.0, 0.0, problem["T"])
+        j_full = calculate_superconducting_current(t_full, problem["field"], problem["E0"], 1.0, 5.0, 0.0, problem["T"])
+        material_type = "super"
+    else:
+        j_known = calculate_normal_current_drude(t_known, problem["field"], problem["T"], problem["E0"], 1.0, 5.0, 0.0)
+        j_full = calculate_normal_current_drude(t_full, problem["field"], problem["T"], problem["E0"], 1.0, 5.0, 0.0)
+        material_type = "metal"
+    
+    return {
+        "t_known": t_known,
+        "j_known": j_known,
+        "t_full": t_full,
+        "j_full": j_full,
+        "material_type": material_type,
+        "params": problem,
+        "hint": problem["hint"]
+    }
+
+def prediction_game_page():
+    st.header("🔮 Предскажи будущее проводника!")
+    
+    st.markdown("""
+    ### 🎯 Правила игры:
+    1. Смотри на начало графика тока
+    2. Нарисуй как будет развиваться ситуация  
+    3. Узнай правильно ли ты угадал физику процесса!
+    """)
+    
+    # Инициализация состояния игры
+    if 'game_data' not in st.session_state:
+        st.session_state.game_data = None
+    if 'user_drawing' not in st.session_state:
+        st.session_state.user_drawing = None
+    if 'show_solution' not in st.session_state:
+        st.session_state.show_solution = False
+    
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        st.subheader("📈 График для предсказания")
+        
+        # Параметры задачи
+        game_mode = st.selectbox("Уровень сложности:", [
+            "Простая - явный сверхпроводник или металл",
+            "Средняя - сложное поле", 
+            "Сложная - случайные параметры"
+        ], key="game_mode")
+        
+        if st.button("🎲 Новая задача", key="new_problem", use_container_width=True):
+            # Генерируем новую случайную задачу
+            st.session_state.game_data = generate_game_problem(game_mode)
+            st.session_state.user_drawing = None
+            st.session_state.show_solution = False
+            st.rerun()
+        
+        # Отображаем задачу если она есть
+        if st.session_state.game_data:
+            data = st.session_state.game_data
+            
+            # Показываем подсказку
+            with st.expander("💡 Подсказка"):
+                st.write(data["hint"])
+                st.write(f"Температура: {data['params']['T']:.1f}K")
+                st.write(f"Тип поля: {data['params']['field']}")
+            
+            # График с известной частью
+            fig = go.Figure()
+            
+            # Известная часть (сплошная линия)
+            fig.add_trace(go.Scatter(
+                x=data["t_known"], y=data["j_known"],
+                mode='lines',
+                name='Известная часть',
+                line=dict(color='blue', width=4)
+            ))
+            
+            # Если пользователь нарисовал предсказание
+            if st.session_state.user_drawing:
+                user_t, user_j = st.session_state.user_drawing
+                fig.add_trace(go.Scatter(
+                    x=user_t, y=user_j,
+                    mode='lines',
+                    name='Твое предсказание',
+                    line=dict(color='orange', width=4, dash='dash')
+                ))
+            
+            # Если показано решение
+            if st.session_state.show_solution:
+                fig.add_trace(go.Scatter(
+                    x=data["t_full"], y=data["j_full"],
+                    mode='lines',
+                    name='Правильный ответ',
+                    line=dict(color='green', width=4, dash='dot')
+                ))
+            
+            fig.update_layout(
+                title="Нарисуй продолжение графика 📈",
+                xaxis_title="Время (с)",
+                yaxis_title="Густина струму (А/м²)",
+                height=400,
+                showlegend=True
+            )
+            fig.update_yaxes(tickformat=".2e")
+            
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # Интерфейс для рисования
+            st.subheader("✏️ Нарисуй свое предсказание")
+            
+            col_draw1, col_draw2 = st.columns(2)
+            
+            with col_draw1:
+                drawing_type = st.radio("Тип предсказания:", [
+                    "Бесконечный рост (сверхпроводник)",
+                    "Насыщение (металл)", 
+                    "Колебания",
+                    "Другое"
+                ], key="draw_type")
+            
+            with col_draw2:
+                if st.button("🎯 Проверить предсказание", use_container_width=True):
+                    # Генерируем предсказание пользователя
+                    t_pred = np.linspace(2.5, 5, 50)
+                    
+                    if drawing_type == "Бесконечный рост (сверхпроводник)":
+                        j_pred = data["j_known"][-1] + np.linspace(0, abs(data["j_known"][-1]) * 2, 50)
+                    elif drawing_type == "Насыщение (металл)":
+                        j_pred = np.full(50, data["j_known"][-1] * 0.8)
+                    elif drawing_type == "Колебания":
+                        j_pred = data["j_known"][-1] + np.sin(np.linspace(0, 4*np.pi, 50)) * abs(data["j_known"][-1]) * 0.3
+                    else:
+                        # Случайное предсказание
+                        j_pred = data["j_known"][-1] + np.random.normal(0, abs(data["j_known"][-1]) * 0.2, 50)
+                    
+                    st.session_state.user_drawing = (t_pred, j_pred)
+                    st.session_state.show_solution = True
+                    st.rerun()
+            
+            # Оценка результата
+            if st.session_state.show_solution and st.session_state.user_drawing:
+                user_t, user_j = st.session_state.user_drawing
+                real_j = data["j_full"][50:]  # Вторая половина реальных данных
+                
+                # Простая оценка совпадения
+                error = np.mean(np.abs(user_j - real_j[:len(user_j)])) / np.mean(np.abs(real_j))
+                accuracy = max(0, 100 - error * 100)
+                
+                st.subheader("📊 Результат")
+                
+                col_res1, col_res2, col_res3 = st.columns(3)
+                
+                with col_res1:
+                    st.metric("Точность", f"{accuracy:.1f}%")
+                
+                with col_res2:
+                    real_type = "СВЕРХПРОВОДНИК" if data["material_type"] == "super" else "МЕТАЛЛ"
+                    st.metric("Правильный ответ", real_type)
+                
+                with col_res3:
+                    if accuracy > 80:
+                        st.success("🎉 Отлично!")
+                        st.balloons()
+                    elif accuracy > 50:
+                        st.warning("👍 Хорошо!")
+                    else:
+                        st.error("📚 Учимся!")
+                
+                # Образовательный комментарий
+                with st.expander("📚 Объяснение"):
+                    if data["material_type"] == "super":
+                        st.markdown("""
+                        **Правильный ответ: СВЕРХПРОВОДНИК**
+                        
+                        - Струм продолжает расти из-за отсутствия сопротивления
+                        - Рівняння Лондонів: dj/dt ∼ E
+                        - При T < T_c опір дорівнює нулю
+                        """)
+                    else:
+                        st.markdown("""
+                        **Правильный ответ: МЕТАЛЛ**
+                        
+                        - Струм насыщается из-за сопротивления  
+                        - Модель Друде: струм достигает стационарного значения
+                        - При T ≥ T_c есть сопротивление
+                        """)
+    
+    with col2:
+        st.subheader("🎓 Обучение")
+        
+        st.markdown("""
+        ### 📖 Подсказки:
+        
+        **Сверхпроводник (T < 9.2K):**
+        - Линейный или квадратичный рост
+        - Нет насыщения
+        - Для синусоидального поля - чистые колебания
+        
+        **Металл (T ≥ 9.2K):**
+        - Экспоненциальное насыщение  
+        - Стационарное значение
+        - Для синусоидального поля - затухающие колебания
+        
+        ### 🏆 Уровни:
+        - **Простой**: Явные случаи
+        - **Средний**: Сложные поля
+        - **Сложный**: Случайные параметры
+        """)
+        
+        # Статистика игрока
+        if 'game_stats' not in st.session_state:
+            st.session_state.game_stats = {"played": 0, "correct": 0, "avg_accuracy": 0}
+        
+        st.subheader("📈 Твоя статистика")
+        st.metric("Сыграно игр", st.session_state.game_stats["played"])
+        st.metric("Правильных ответов", st.session_state.game_stats["correct"])
+        st.metric("Средняя точность", f"{st.session_state.game_stats['avg_accuracy']:.1f}%")
+
+
 # =============================================================================
 # ОСНОВНА СТОРІНКА
 # =============================================================================
@@ -1222,7 +1478,8 @@ def main():
         page = st.radio("Оберіть сторінку:", [
             "🧪 Основна сторінка",
             "🎬 Анімації та демонстрації",
-            "🏎️ Електронні Гонки"
+            "🏎️ Електронні Гонки",
+            "🔮 Передбач майбутнє"
         ])
     
     # Вибір сторінки
@@ -1232,6 +1489,8 @@ def main():
         animations_page()
     elif page == "🏎️ Електронні Гонки":
         racing_page()
+     elif page == "🔮 Передбач майбутнє":  # ← И ЭТУ СТРОЧКУ!
+        prediction_game_page()
 
 if __name__ == "__main__":
     main()

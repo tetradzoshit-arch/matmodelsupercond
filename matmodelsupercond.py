@@ -4,6 +4,9 @@ import plotly.graph_objects as go
 import pandas as pd
 from io import BytesIO
 from scipy.signal import find_peaks
+import tempfile
+import os
+from reportlab.lib.utils import ImageReader
 
 # ФІЗИЧНІ КОНСТАНТИ ДЛЯ НІОБІЮ
 e = 1.602e-19  # Кл
@@ -130,8 +133,22 @@ def analyze_mathematical_characteristics(t, j_data, state_name, field_type, omeg
     
     return analysis
 
+def save_current_plot_as_image(fig, filename_prefix="plot"):
+    """Збереження графіка Plotly як зображення для PDF"""
+    try:
+        # Створюємо тимчасовий файл
+        temp_dir = tempfile.gettempdir()
+        filepath = os.path.join(temp_dir, f"{filename_prefix}_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.png")
+        
+        # Зберігаємо графік як PNG
+        fig.write_image(filepath, width=800, height=600, scale=2)
+        return filepath
+    except Exception as e:
+        print(f"Помилка збереження графіка: {e}")
+        return None
+
 def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots):
-    """Створення PDF звіту"""
+    """Створення PDF звіту з графіками"""
     try:
         from reportlab.lib.pagesizes import A4, landscape
         from reportlab.pdfgen import canvas
@@ -152,6 +169,7 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
             except:
                 font_name = 'Helvetica'
         
+        # Сторінка 1: Загальна інформація
         pdf.setFont(font_name, 16)
         pdf.drawString(100, 520, "ЗВІТ З МОДЕЛЮВАННЯ СТРУМУ В НІОБІЇ")
         
@@ -329,11 +347,88 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
                 pdf.setFont(font_name, 12)
                 y_position = 490
         
+        # Додавання графіків на окремі сторінки
+        if saved_plots:
+            pdf.showPage()  # Нова сторінка для графіків
+            
+            for i, plot_data in enumerate(saved_plots):
+                try:
+                    # Створюємо графік для PDF
+                    fig_pdf = go.Figure()
+                    
+                    if plot_data['state'] == 'Надпровідник':
+                        fig_pdf.add_trace(go.Scatter(
+                            x=plot_data['t'], y=plot_data['j_data'], 
+                            name=f"Надпровідник (T={plot_data['temperature']}K)",
+                            line=dict(color='red', width=3)
+                        ))
+                        title = f"Графік {i+1}: Надпровідник при T={plot_data['temperature']}K"
+                    elif plot_data['state'] == 'Звичайний метал':
+                        fig_pdf.add_trace(go.Scatter(
+                            x=plot_data['t'], y=plot_data['j_data'],
+                            name=f"Метал (T={plot_data['temperature']}K, {plot_data['model']})",
+                            line=dict(color='blue', width=3)
+                        ))
+                        title = f"Графік {i+1}: Звичайний метал при T={plot_data['temperature']}K"
+                    elif plot_data['state'] in ['Порівняння', 'Кілька графіків']:
+                        fig_pdf.add_trace(go.Scatter(
+                            x=plot_data['t'], y=plot_data['j_super'], 
+                            name=f"Надпровідник (T={plot_data['temperature']}K)", 
+                            line=dict(color='red', width=3)
+                        ))
+                        fig_pdf.add_trace(go.Scatter(
+                            x=plot_data['t'], y=plot_data['j_normal'], 
+                            name=f"Метал (T={plot_data['temperature']}K)", 
+                            line=dict(color='blue', width=3)
+                        ))
+                        title = f"Графік {i+1}: Порівняння станів при T={plot_data['temperature']}K"
+                    
+                    fig_pdf.update_layout(
+                        title=title,
+                        xaxis_title="Час (с)",
+                        yaxis_title="Густина струму (А/м²)",
+                        height=600,
+                        showlegend=True
+                    )
+                    fig_pdf.update_yaxes(tickformat=".2e")
+                    
+                    # Зберігаємо графік як зображення
+                    plot_path = save_current_plot_as_image(fig_pdf, f"plot_{i}")
+                    
+                    if plot_path and os.path.exists(plot_path):
+                        # Додаємо заголовок для графіка
+                        pdf.setFont(font_name, 14)
+                        pdf.drawString(100, 520, title)
+                        
+                        # Вставляємо графік
+                        img = ImageReader(plot_path)
+                        pdf.drawImage(img, 50, 200, width=650, height=300, preserveAspectRatio=True)
+                        
+                        # Додаємо опис графіка
+                        pdf.setFont(font_name, 10)
+                        description = f"Тип поля: {plot_data['field_type']}, E₀={plot_data['E0']} В/м, j₀={plot_data['j0']} А/м²"
+                        pdf.drawString(100, 180, description)
+                        
+                        # Видаляємо тимчасовий файл
+                        try:
+                            os.remove(plot_path)
+                        except:
+                            pass
+                        
+                        # Якщо це не останній графік, створюємо нову сторінку
+                        if i < len(saved_plots) - 1:
+                            pdf.showPage()
+                            
+                except Exception as e:
+                    print(f"Помилка при додаванні графіка {i}: {e}")
+                    continue
+        
         pdf.save()
         buffer.seek(0)
         return buffer
         
     except Exception as e:
+        print(f"Помилка при створенні PDF: {e}")
         buffer = BytesIO()
         report_text = "ЗВІТ З МОДЕЛЮВАННЯ СТРУМУ В НІОБІЇ\n\n"
         report_text += "Параметри моделювання:\n"
@@ -342,6 +437,7 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
         buffer.write(report_text.encode('utf-8'))
         buffer.seek(0)
         return buffer
+
 def main():
     st.set_page_config(page_title="Моделювання струму", layout="wide")
     st.title("🔬 Моделювання динаміки струму в ніобії")

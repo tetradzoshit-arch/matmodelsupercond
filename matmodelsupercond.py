@@ -692,5 +692,111 @@ def main():
         - Широко використовується у надпровідних магнітах
         """)
 
+    # Анімації та додаткові функції
+    with st.expander("🎬 Демонстраційні анімації"):
+        st.subheader("Температурна анімація")
+        if st.button("▶️ Запустити анімацію зміни температури"):
+            import time
+            
+            # Створюємо прогрес бар
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            plot_placeholder = st.empty()
+            
+            # Діапазон температур для анімації
+            temps = np.linspace(1, 18, 30)
+            
+            for i, temp in enumerate(temps):
+                # Оновлюємо прогрес
+                progress = int((i / len(temps)) * 100)
+                progress_bar.progress(progress)
+                status_text.text(f"Температура: {temp:.1f} K | Стан: {determine_state(temp)}")
+                
+                # Розраховуємо струми
+                t_anim = np.linspace(0, t_max, 200)
+                j_super = calculate_superconducting_current(t_anim, field_type, E0, a, omega, j0, temp)
+                j_normal = calculate_normal_current_drude(t_anim, field_type, temp, E0, a, omega, j0)
+                
+                # Створюємо графік
+                fig_anim = go.Figure()
+                fig_anim.add_trace(go.Scatter(x=t_anim, y=j_super, name='Надпровідник', 
+                                            line=dict(color='red', width=3)))
+                fig_anim.add_trace(go.Scatter(x=t_anim, y=j_normal, name='Метал', 
+                                            line=dict(color='blue', width=3)))
+                
+                fig_anim.update_layout(
+                    title=f"Динаміка струму при T = {temp:.1f} K",
+                    xaxis_title="Час (с)",
+                    yaxis_title="Густина струму (А/м²)",
+                    height=400
+                )
+                fig_anim.update_yaxes(tickformat=".2e")
+                
+                # Відображаємо графік
+                plot_placeholder.plotly_chart(fig_anim, use_container_width=True)
+                
+                # Невелика затримка для анімації
+                time.sleep(0.2)
+            
+            # Завершення анімації
+            progress_bar.progress(100)
+            status_text.text("✅ Анімація завершена!")
+            st.success("Анімація успішно завершена! Спробуйте різні параметри.")
+
+        st.subheader("Швидкий перехід через критичну температуру")
+        if st.button("⚡ Показати перехід через T_c"):
+            transition_temps = [8.0, 9.2, 10.0, 12.0]  # Нижче, рівно, вище Tc
+            
+            for T_trans in transition_temps:
+                state = "Надпровідник" if T_trans < Tc else "Звичайний метал"
+                color = "red" if T_trans < Tc else "blue"
+                
+                st.markdown(f"### T = {T_trans} K - **{state}**")
+                
+                # Швидкий графік
+                t_trans = np.linspace(0, t_max, 100)
+                if T_trans < Tc:
+                    j_data = calculate_superconducting_current(t_trans, field_type, E0, a, omega, j0, T_trans)
+                else:
+                    j_data = calculate_normal_current_drude(t_trans, field_type, T_trans, E0, a, omega, j0)
+                
+                fig_trans = go.Figure()
+                fig_trans.add_trace(go.Scatter(x=t_trans, y=j_data, name=state, 
+                                             line=dict(color=color, width=3)))
+                fig_trans.update_layout(height=300, showlegend=False)
+                fig_trans.update_yaxes(tickformat=".2e")
+                
+                st.plotly_chart(fig_trans, use_container_width=True)
+
+    # Статистика сесії
+    with st.expander("📈 Статистика сесії"):
+        if st.session_state.saved_plots:
+            max_currents = []
+            for plot in st.session_state.saved_plots:
+                if plot['state'] in ['Надпровідник', 'Звичайний метал']:
+                    max_currents.append(np.max(plot['j_data']))
+                else:  # Порівняння
+                    max_currents.extend([np.max(plot['j_super']), np.max(plot['j_normal'])])
+            
+            if max_currents:
+                max_current = np.max(max_currents)
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("📊 Максимальний струм", 
+                             f"{max_current:.2e} А/м²",
+                             f"{max_current/1e10:.1f}×10¹⁰ А/м²")
+                with col2:
+                    st.metric("🎯 Експериментів", 
+                             len(st.session_state.saved_plots),
+                             "збережених графіків")
+                with col3:
+                    unique_temps = len(set(plot['temperature'] for plot in st.session_state.saved_plots))
+                    st.metric("🌡️ Температур", 
+                             unique_temps,
+                             "унікальних значень")
+        else:
+            st.info("Немає даних для статистики. Збережіть графіки для аналізу.")
+)
+
 if __name__ == "__main__":
     main()

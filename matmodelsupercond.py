@@ -303,86 +303,32 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
             y_position -= 25
 
         # Математичний аналіз з кольоровими таблицями
-       # Математичний аналіз з кольоровими таблицями
-if math_analyses:
-    if y_position < 200:
-        pdf.showPage()
-        pdf.setFont(font_name, 14)
-        y_position = height - 80
-    
-    pdf.setFont(font_name, 16)
-    pdf.drawString(100, y_position, "МАТЕМАТИЧНИЙ АНАЛІЗ")
-    y_position -= 35
-    
-    # Заголовок таблиці - більше колонок для всіх даних
-    col_widths = [100, 100, 80, 80, 80, 80, 80, 80, 80]
-    col_positions = [50, 150, 250, 330, 410, 490, 570, 650, 730]
-    row_height = 30
-    
-    # Кольорові заголовки
-    pdf.setFillColor(colors.lightgreen)
-    pdf.rect(50, y_position - row_height, sum(col_widths), row_height, fill=1, stroke=0)
-    pdf.setFillColor(colors.black)
-    
-    headers = ["Функція", "Тип функції", "f(0)", "f(t_max)", "max f(t)", "min f(t)", "f'(max)", "f'(min)", "f'(сер)"]
-    pdf.setFont(font_name, 9)  # Менший шрифт для заголовків
-    for i, header in enumerate(headers):
-        pdf.drawString(col_positions[i] + 5, y_position - 18, header)
-    
-    y_position -= row_height + 8
-    
-    # Дані з кольоровим фоном
-    pdf.setFont(font_name, 8)  # Менший шрифт для даних
-    for i, analysis in enumerate(math_analyses):
-        if y_position < 120:
-            pdf.showPage()
-            pdf.setFont(font_name, 14)
-            y_position = height - 80
-            # Повторюємо заголовки
+        if math_analyses:
+            if y_position < 200:
+                pdf.showPage()
+                pdf.setFont(font_name, 14)
+                y_position = height - 80
+            
+            pdf.setFont(font_name, 16)
+            pdf.drawString(100, y_position, "МАТЕМАТИЧНИЙ АНАЛІЗ")
+            y_position -= 35
+            
+            # Заголовок таблиці - компактна версія
+            col_widths = [120, 120, 100, 100, 100, 100, 100]
+            col_positions = [50, 170, 290, 390, 490, 590, 690]
+            row_height = 30
+            
+            # Кольорові заголовки
             pdf.setFillColor(colors.lightgreen)
             pdf.rect(50, y_position - row_height, sum(col_widths), row_height, fill=1, stroke=0)
             pdf.setFillColor(colors.black)
-            pdf.setFont(font_name, 9)
-            for j, header in enumerate(headers):
-                pdf.drawString(col_positions[j] + 5, y_position - 18, header)
+            
+            headers = ["Функція", "Тип функції", "f(0)", "max f(t)", "f'(max)", "f'(min)", "f'(сер)"]
+            pdf.setFont(font_name, 10)
+            for i, header in enumerate(headers):
+                pdf.drawString(col_positions[i] + 5, y_position - 18, header)
+            
             y_position -= row_height + 8
-            pdf.setFont(font_name, 8)
-        
-        # Кольоровий фон для рядків
-        if i % 2 == 0:
-            pdf.setFillColor(colors.lightgrey)
-        else:
-            pdf.setFillColor(colors.whitesmoke)
-        
-        pdf.rect(50, y_position - row_height, sum(col_widths), row_height, fill=1, stroke=0)
-        pdf.setFillColor(colors.black)
-        
-        # Отримуємо всі значення
-        func_type = analysis.get('Тип функції', '')
-        f_0 = analysis.get('f(0)', '')
-        f_tmax = analysis.get('f(t_max)', analysis.get('f(t_max)', 'N/A'))
-        f_max = analysis.get('max f(t)', '')
-        f_min = analysis.get('min f(t)', '')
-        f_prime_max = analysis.get("f'(max)", analysis.get('Макс. швидкість', 'N/A'))
-        f_prime_min = analysis.get("f'(min)", 'N/A')
-        f_prime_avg = analysis.get("f'(середнє)", analysis.get("f'(сер)", 'N/A'))
-        
-        cells = [
-            analysis.get('Функція', '')[:12],
-            func_type[:15] if func_type else 'N/A',
-            f_0[:10],
-            f_tmax[:10] if f_tmax else 'N/A',
-            f_max[:10],
-            f_min[:10],
-            str(f_prime_max)[:10],
-            str(f_prime_min)[:10],
-            str(f_prime_avg)[:10]
-        ]
-        
-        for j, cell in enumerate(cells):
-            pdf.drawString(col_positions[j] + 5, y_position - 18, str(cell))
-        
-        y_position -= row_height + 8
             
             # Дані з кольоровим фоном
             pdf.setFont(font_name, 9)
@@ -393,11 +339,11 @@ if math_analyses:
                     y_position = height - 80
                     # Повторюємо заголовки
                     pdf.setFillColor(colors.lightgreen)
-                    pdf.rect(60, y_position - row_height, sum(col_widths), row_height, fill=1, stroke=0)
+                    pdf.rect(50, y_position - row_height, sum(col_widths), row_height, fill=1, stroke=0)
                     pdf.setFillColor(colors.black)
-                    pdf.setFont(font_name, 11)
+                    pdf.setFont(font_name, 10)
                     for j, header in enumerate(headers):
-                        pdf.drawString(col_positions[j] + 8, y_position - 18, header)
+                        pdf.drawString(col_positions[j] + 5, y_position - 18, header)
                     y_position -= row_height + 8
                     pdf.setFont(font_name, 9)
                 
@@ -407,25 +353,29 @@ if math_analyses:
                 else:
                     pdf.setFillColor(colors.whitesmoke)
                 
-                pdf.rect(60, y_position - row_height, sum(col_widths), row_height, fill=1, stroke=0)
+                pdf.rect(50, y_position - row_height, sum(col_widths), row_height, fill=1, stroke=0)
                 pdf.setFillColor(colors.black)
                 
-                # Отримуємо значення з різних можливих ключів
-                f_max = analysis.get("f'(max)", analysis.get('Макс. швидкість', 'N/A'))
-                f_min = analysis.get("f'(min)", 'N/A')
-                f_avg = analysis.get("f'(середнє)", analysis.get("f'(сер)", 'N/A'))
+                # Отримуємо всі значення
+                func_type = analysis.get('Тип функції', analysis.get('Тип функції', 'N/A'))
+                f_0 = analysis.get('f(0)', 'N/A')
+                f_max = analysis.get('max f(t)', 'N/A')
+                f_prime_max = analysis.get("f'(max)", analysis.get('Макс. швидкість', 'N/A'))
+                f_prime_min = analysis.get("f'(min)", 'N/A')
+                f_prime_avg = analysis.get("f'(середнє)", analysis.get("f'(сер)", 'N/A'))
                 
                 cells = [
-                    analysis.get('Функція', '')[:15],
-                    analysis.get('f(0)', '')[:12],
-                    analysis.get('max f(t)', '')[:12],
-                    str(f_max)[:12],
-                    str(f_min)[:12],
-                    str(f_avg)[:12]
+                    analysis.get('Функція', 'N/A')[:15],
+                    func_type[:18],
+                    f_0[:12],
+                    f_max[:12],
+                    str(f_prime_max)[:12],
+                    str(f_prime_min)[:12],
+                    str(f_prime_avg)[:12]
                 ]
                 
                 for j, cell in enumerate(cells):
-                    pdf.drawString(col_positions[j] + 8, y_position - 18, str(cell))
+                    pdf.drawString(col_positions[j] + 5, y_position - 18, str(cell))
                 
                 y_position -= row_height + 8
         
@@ -456,6 +406,22 @@ if math_analyses:
             y_position -= 20
         
         pdf.save()
+        buffer.seek(0)
+        return buffer
+        
+    except Exception as e:
+        st.error(f"Помилка при створенні PDF: {e}")
+        import traceback
+        st.error(traceback.format_exc())
+        
+        buffer = io.BytesIO()
+        report_text = "ЗВІТ З МОДЕЛЮВАННЯ СТРУМУ В НІОБІЇ\n\n"
+        report_text += "Загальні параметри:\n"
+        report_text += f"T_c = {Tc} K, n₀ = {n0:.1e} м⁻³, τ = {tau_imp:.1e} с\n\n"
+        report_text += "Збережені графіки:\n"
+        for i, plot in enumerate(saved_plots):
+            report_text += f"Графік {i+1}: {plot.get('state', 'N/A')}, T={plot.get('temperature', 'N/A')}K\n"
+        buffer.write(report_text.encode('utf-8'))
         buffer.seek(0)
         return buffer
         

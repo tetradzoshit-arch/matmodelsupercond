@@ -521,6 +521,8 @@ def racing_page():
         st.session_state.race_frame = 0
     if 'race_data' not in st.session_state:
         st.session_state.race_data = None
+    if 'last_update' not in st.session_state:
+        st.session_state.last_update = 0
     
     st.markdown("""
     ### 🎯 Мета гри:
@@ -555,7 +557,7 @@ def racing_page():
         
         if st.button("🎮 Старт гонки!", use_container_width=True):
             # Подготавливаем данные для гонки
-            t_race = np.linspace(0, 3, 30)
+            t_race = np.linspace(0, 3, 20)  # Уменьшил количество кадров для стабильности
             
             # Расчет для машинки 1
             if car1_type == "Надпровідник":
@@ -577,16 +579,17 @@ def racing_page():
                 'car1_type': car1_type,
                 'car2_type': car2_type,
                 'car1_temp': car1_temp,
-                'car2_temp': car2_temp
+                'car2_temp': car2_temp,
+                'race_speed': race_speed
             }
             st.session_state.race_started = True
             st.session_state.race_frame = 0
-            st.rerun()
+            st.session_state.last_update = time.time()
     
     with col2:
         st.subheader("📊 Стан системи")
         
-        # БЕЗОПАСНЫЙ доступ к данным - проверяем существует ли race_data
+        # БЕЗОПАСНЫЙ доступ к данным
         if st.session_state.race_data is not None:
             data = st.session_state.race_data
             st.write(f"**Машинка 1 🏎️:** {data['car1_type']} ({data['car1_temp']}K)")
@@ -602,12 +605,12 @@ def racing_page():
     
     # Гоночная трасса - ТОЛЬКО если есть данные
     if st.session_state.race_started and st.session_state.race_data is not None:
-        # ... остальной код гонки без изменений ...
         data = st.session_state.race_data
         frame = st.session_state.race_frame
         
         if frame < len(data['t_race']):
-            # ... код анимации ...
+            st.subheader("🏁 ГОНКА ТРИВАЄ!")
+            
             progress_car1 = int((frame / len(data['t_race'])) * 100)
             progress_car2 = int((frame / len(data['t_race'])) * 100)
             
@@ -620,17 +623,118 @@ def racing_page():
             speed_car1 = abs(data['j_car1'][frame])
             speed_car2 = abs(data['j_car2'][frame])
             
-            # ... остальной код анимации ...
+            # Форматируем скорость для отображения
+            def format_speed(speed):
+                if speed >= 1e6:
+                    return f"{speed:.1e}"
+                else:
+                    return f"{speed:.1f}"
             
+            # Визуализация гонки
+            st.write(f"### 🏎️ Машинка 1 - {data['car1_type']}")
+            if data['car1_type'] == "Надпровідник":
+                st.success("✅ Супер-шосе без опору! 🛣️")
+            else:
+                st.warning("⚠️ Міські пробки з опором! 🚦")
+            
+            # Прогресс-бар для машинки 1
+            st.progress(progress_car1 / 100, text=f"Прогрес: {progress_car1}%")
+            st.write(f"**Швидкість:** {format_speed(speed_car1)} А/м²")
+            
+            # Визуальная трасса машинки 1
+            track_length = 50
+            car1_pos = int(progress_car1 * track_length / 100)
+            track1 = "🛣️" + "=" * car1_pos + "🏎️" + "." * (track_length - car1_pos)
+            st.write(track1)
+            
+            st.write("---")
+            
+            # Машинка 2
+            st.write(f"### 🚗 Машинка 2 - {data['car2_type']}")
+            if data['car2_type'] == "Надпровідник":
+                st.success("✅ Супер-шосе без опору! 🛣️")
+            else:
+                st.warning("⚠️ Міські пробки з опором! 🚦")
+            
+            # Прогресс-бар для машинки 2
+            st.progress(progress_car2 / 100, text=f"Прогрес: {progress_car2}%")
+            st.write(f"**Швидкість:** {format_speed(speed_car2)} А/м²")
+            
+            # Визуальная трасса машинки 2 с препятствиями
+            car2_pos = int(progress_car2 * track_length / 100)
+            obstacles = "🚧" * ((frame // 2) % 2 + 1) if data['car2_type'] == "Метал" else ""
+            track2 = "🛣️" + "=" * car2_pos + "🚗" + "." * (track_length - car2_pos) + " " + obstacles
+            st.write(track2)
+            
+            # Статус гонки
+            st.markdown(f"**⏱️ Час гонки: {data['t_race'][frame]:.1f}с**")
+            st.markdown(f"**📊 Кадр: {frame + 1}/{len(data['t_race'])}**")
+            
+            # Автоматическое продвижение кадра
+            current_time = time.time()
+            if current_time - st.session_state.last_update > (1.0 / data['race_speed']):
+                st.session_state.race_frame += 1
+                st.session_state.last_update = current_time
+                st.rerun()
+            
+            # Кнопка паузы
+            if st.button("⏸️ Пауза", key="pause_race"):
+                st.session_state.race_started = False
+                st.rerun()
+        
         else:
             # Гонка завершена
             st.session_state.race_started = False
             
             # Финальные результаты
             st.markdown("---")
-            st.subheader("📈 Результати гонки")
+            st.subheader("🎉 Гонка завершена!")
+            st.subheader("📈 Результати")
             
-            # ... код результатов ...
+            col_stat1, col_stat2, col_stat3 = st.columns(3)
+            
+            with col_stat1:
+                max_car1 = np.max(np.abs(data['j_car1']))
+                max_car2 = np.max(np.abs(data['j_car2']))
+                if max_car1 > max_car2:
+                    winner = "🏎️ Машинка 1"
+                    st.success("🏆 Перемога машинки 1!")
+                elif max_car2 > max_car1:
+                    winner = "🚗 Машинка 2" 
+                    st.success("🏆 Перемога машинки 2!")
+                else:
+                    winner = "🤝 Нічия"
+                    st.info("🤝 Нічия!")
+                st.metric("Переможець", winner)
+            
+            with col_stat2:
+                final_car1 = data['j_car1'][-1]
+                final_car2 = data['j_car2'][-1]
+                st.metric("Фінальна швидкість 1", f"{final_car1:.1e} А/м²")
+                st.metric("Фінальна швидкість 2", f"{final_car2:.1e} А/м²")
+            
+            with col_stat3:
+                st.balloons()
+                if st.button("🔄 Нова гонка", use_container_width=True):
+                    st.session_state.race_started = False
+                    st.session_state.race_data = None
+                    st.rerun()
+            
+            # Образовательный вывод
+            with st.expander("📚 Пояснення результатів"):
+                if data['car1_type'] == "Надпровідник" and data['car1_temp'] < Tc:
+                    st.write("✅ **Машинка 1 (надпровідник)**: Працює правильно - немає опору!")
+                elif data['car1_type'] == "Надпровідник" and data['car1_temp'] >= Tc:
+                    st.write("❌ **Машинка 1 (надпровідник)**: Не працює - температура вище T_c!")
+                else:
+                    st.write("✅ **Машинка 1 (метал)**: Працює як звичайний провідник")
+                
+                if data['car2_type'] == "Надпровідник" and data['car2_temp'] < Tc:
+                    st.write("✅ **Машинка 2 (надпровідник)**: Працює правильно - немає опору!")
+                elif data['car2_type'] == "Надпровідник" and data['car2_temp'] >= Tc:
+                    st.write("❌ **Машинка 2 (надпровідник)**: Не працює - температура вище T_c!")
+                else:
+                    st.write("✅ **Машинка 2 (метал)**: Працює як звичайний провідник")
     
     else:
         # Экран перед стартом
@@ -657,12 +761,12 @@ def racing_page():
         st.markdown("""
         ### 🎯 Експериментуй!
         Спробуй різні комбінації:
-        - Два надпровідники
-        - Два метали  
-        - Надпровідник vs метал
-        - Надпровідник з високою температурою
+        - 🏎️ + 🏎️ Два надпровідники
+        - 🚗 + 🚗 Два метали  
+        - 🏎️ + 🚗 Надпровідник vs метал
+        - 🔥 Надпровідник з високою температурою
         """)
-# =============================================================================
+===============================================================
 # ПЕРЕДБАЧ МАЙБУТНЄ
 # =============================================================================
 def generate_game_problem(difficulty):
@@ -956,7 +1060,7 @@ def main_page():
         st.session_state.current_params = {
         'temp': current_temp,
         'field': field_type, 
-        'mode': comparison_mode
+        'mode': comparison_mode }
         if comparison_mode == "Порівняння":
             T_common = st.slider("Температура (K)", 0.1, 18.4, 4.2, 0.1)
             current_temp = T_common

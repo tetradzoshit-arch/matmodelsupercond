@@ -524,7 +524,7 @@ def racing_page():
     
     st.markdown("""
     ### 🎯 Мета гри:
-    Побачити різницю між надпровідником та звичайним металом через гонку електронів!
+    Обери матеріали для двох машинок і подивись хто виграє гонку!
     """)
     
     col1, col2 = st.columns(2)
@@ -532,7 +532,23 @@ def racing_page():
     with col1:
         st.subheader("🚦 Параметри гонки")
         
-        race_temp = st.slider("Температура (K)", 1.0, 18.0, 4.2, 0.1, key="race_temp")
+        # Выбор материалов для двух машинок
+        st.write("**Обери матеріали для машинок:**")
+        
+        col_car1, col_car2 = st.columns(2)
+        with col_car1:
+            car1_type = st.radio("Машинка 1 🏎️:", 
+                                ["Надпровідник", "Метал"], 
+                                key="car1_type")
+            car1_temp = st.slider("Температура машинки 1 (K)", 1.0, 18.0, 4.2, 0.1, key="car1_temp")
+        
+        with col_car2:
+            car2_type = st.radio("Машинка 2 🚗:", 
+                                ["Надпровідник", "Метал"], 
+                                key="car2_type")
+            car2_temp = st.slider("Температура машинки 2 (K)", 1.0, 18.0, 12.0, 0.1, key="car2_temp")
+        
+        # Общие параметры
         race_field = st.selectbox("Тип поля:", ["Статичне", "Лінійне", "Синусоїдальне"], key="race_field")
         race_E0 = st.slider("Потужність поля E₀", 0.1, 2.0, 0.5, 0.1, key="race_E0")
         race_speed = st.slider("Швидкість анімації", 0.5, 3.0, 1.0, 0.1, key="race_speed")
@@ -540,15 +556,28 @@ def racing_page():
         if st.button("🎮 Старт гонки!", use_container_width=True):
             # Подготавливаем данные для гонки
             t_race = np.linspace(0, 3, 30)
-            j_super = calculate_superconducting_current(t_race, race_field, race_E0, 1.0, 5.0, 0.0, race_temp)
-            j_metal = calculate_normal_current_drude(t_race, race_field, race_temp, race_E0, 1.0, 5.0, 0.0)
+            
+            # Расчет для машинки 1
+            if car1_type == "Надпровідник":
+                j_car1 = calculate_superconducting_current(t_race, race_field, race_E0, 1.0, 5.0, 0.0, car1_temp)
+            else:
+                j_car1 = calculate_normal_current_drude(t_race, race_field, car1_temp, race_E0, 1.0, 5.0, 0.0)
+            
+            # Расчет для машинки 2
+            if car2_type == "Надпровідник":
+                j_car2 = calculate_superconducting_current(t_race, race_field, race_E0, 1.0, 5.0, 0.0, car2_temp)
+            else:
+                j_car2 = calculate_normal_current_drude(t_race, race_field, car2_temp, race_E0, 1.0, 5.0, 0.0)
             
             # Сохраняем данные
             st.session_state.race_data = {
                 't_race': t_race,
-                'j_super': j_super,
-                'j_metal': j_metal,
-                'race_temp': race_temp
+                'j_car1': j_car1,
+                'j_car2': j_car2,
+                'car1_type': car1_type,
+                'car2_type': car2_type,
+                'car1_temp': car1_temp,
+                'car2_temp': car2_temp
             }
             st.session_state.race_started = True
             st.session_state.race_frame = 0
@@ -556,11 +585,16 @@ def racing_page():
     
     with col2:
         st.subheader("📊 Стан системи")
-        state = "🏎️ НАДПРОВІДНИК" if race_temp < Tc else "🚗 МЕТАЛ"
-        color = "🟢" if race_temp < Tc else "🔵"
-        st.metric("Стан матеріалу", f"{color} {state}")
+        
+        if st.session_state.race_data:
+            data = st.session_state.race_data
+            st.write(f"**Машинка 1 🏎️:** {data['car1_type']} ({data['car1_temp']}K)")
+            st.write(f"**Машинка 2 🚗:** {data['car2_type']} ({data['car2_temp']}K)")
+        else:
+            st.write("**Машинка 1 🏎️:** Обери параметри")
+            st.write("**Машинка 2 🚗:** Обери параметри")
+        
         st.metric("Критична температура", f"{Tc} K")
-        st.metric("Поточна температура", f"{race_temp} K")
     
     st.markdown("---")
     
@@ -577,11 +611,17 @@ def racing_page():
             progress_placeholder = st.empty()
             status_placeholder = st.empty()
             
-            progress_super = int((frame / len(data['t_race'])) * 100)
-            progress_metal = int((frame / len(data['t_race'])) * 80)  # Метал никогда не достигает 100%
+            progress_car1 = int((frame / len(data['t_race'])) * 100)
+            progress_car2 = int((frame / len(data['t_race'])) * 100)
             
-            speed_super = abs(data['j_super'][frame])
-            speed_metal = abs(data['j_metal'][frame])
+            # Корректируем прогресс в зависимости от типа материала
+            if data['car1_type'] == "Метал":
+                progress_car1 = min(progress_car1, 85)
+            if data['car2_type'] == "Метал":
+                progress_car2 = min(progress_car2, 85)
+            
+            speed_car1 = abs(data['j_car1'][frame])
+            speed_car2 = abs(data['j_car2'][frame])
             
             # Форматируем скорость для отображения
             def format_speed(speed):
@@ -590,45 +630,56 @@ def racing_page():
                 else:
                     return f"{speed:.1f}"
             
-            # Создаем HTML для анимации
-            race_html = f"""
-            <div style="margin: 20px 0; font-family: Arial, sans-serif;">
-                <div style="background: #f0f0f0; padding: 15px; border-radius: 10px; margin-bottom: 20px;">
-                    <h3 style="color: #ff4444; margin: 0;">🏎️ НАДПРОВІДНИК - Супер-шосе без опору! 🛣️</h3>
-                    <div style="background: linear-gradient(90deg, #ff4444 {progress_super}%, #e0e0e0 {progress_super}%); 
-                              height: 40px; border-radius: 8px; margin: 10px 0; position: relative; border: 2px solid #cc0000;">
-                        <div style="position: absolute; left: {progress_super}%; top: -20px; font-size: 35px; transform: translateX(-50%);">🏎️</div>
-                    </div>
-                    <p style="margin: 5px 0;"><strong>Швидкість: {format_speed(speed_super)} А/м²</strong> 🚀</p>
-                    <p style="margin: 5px 0; font-size: 12px; color: #666;">Прогрес: {progress_super}%</p>
-                </div>
+            # Создаем визуализацию гонки с помощью Streamlit элементов
+            with animation_placeholder.container():
+                # Машинка 1
+                st.write(f"### 🏎️ Машинка 1 - {data['car1_type']}")
+                if data['car1_type'] == "Надпровідник":
+                    st.info("Супер-шосе без опору! 🛣️")
+                else:
+                    st.warning("Міські пробки з опором! 🚦")
                 
-                <div style="background: #f0f0f0; padding: 15px; border-radius: 10px;">
-                    <h3 style="color: #4444ff; margin: 0;">🚗 ЗВИЧАЙНИЙ МЕТАЛ - Міські пробки з опором! 🚦</h3>
-                    <div style="background: linear-gradient(90deg, #4444ff {progress_metal}%, #e0e0e0 {progress_metal}%); 
-                              height: 40px; border-radius: 8px; margin: 10px 0; position: relative; border: 2px solid #0000cc;">
-                        <div style="position: absolute; left: {progress_metal}%; top: -20px; font-size: 35px; transform: translateX(-50%);">🚗</div>
-                        <div style="position: absolute; left: 70%; top: 5px; font-size: 20px;">{'🚧' * ((frame // 3) % 3)}</div>
-                    </div>
-                    <p style="margin: 5px 0;"><strong>Швидкість: {format_speed(speed_metal)} А/м²</strong> 🐢</p>
-                    <p style="margin: 5px 0; font-size: 12px; color: #666;">Прогрес: {progress_metal}%</p>
-                </div>
-            </div>
-            """
-            
-            # Обновляем анимацию
-            animation_placeholder.markdown(race_html, unsafe_allow_html=True)
+                # Прогресс-бар для машинки 1
+                st.progress(progress_car1 / 100)
+                
+                # Визуализация трассы с машинкой
+                col_track1, col_icon1 = st.columns([4, 1])
+                with col_track1:
+                    # Создаем визуальную трассу
+                    track_width = progress_car1
+                    track_html = f"🛣️ {'=' * (track_width // 2)}🏎️{'.' * (50 - track_width // 2)}"
+                    st.write(track_html)
+                with col_icon1:
+                    st.write(f"**{format_speed(speed_car1)} А/м²**")
+                
+                st.write(f"**Прогрес: {progress_car1}%**")
+                st.write("---")
+                
+                # Машинка 2
+                st.write(f"### 🚗 Машинка 2 - {data['car2_type']}")
+                if data['car2_type'] == "Надпровідник":
+                    st.info("Супер-шосе без опору! 🛣️")
+                else:
+                    st.warning("Міські пробки з опором! 🚦")
+                
+                # Прогресс-бар для машинки 2
+                st.progress(progress_car2 / 100)
+                
+                # Визуализация трассы с машинкой
+                col_track2, col_icon2 = st.columns([4, 1])
+                with col_track2:
+                    # Создаем визуальную трассу
+                    track_width = progress_car2
+                    obstacles = "🚧" * ((frame // 3) % 3) if data['car2_type'] == "Метал" else ""
+                    track_html = f"🛣️ {'=' * (track_width // 2)}🚗{'.' * (50 - track_width // 2)} {obstacles}"
+                    st.write(track_html)
+                with col_icon2:
+                    st.write(f"**{format_speed(speed_car2)} А/м²**")
+                
+                st.write(f"**Прогрес: {progress_car2}%**")
             
             # Обновляем статус
             status_placeholder.markdown(f"**Час гонки: {data['t_race'][frame]:.1f}с** ⏱️ | **Кадр: {frame + 1}/{len(data['t_race'])}**")
-            
-            # Обновляем прогресс-бары
-            with progress_placeholder.container():
-                prog_col1, prog_col2 = st.columns(2)
-                with prog_col1:
-                    st.progress(progress_super / 100, text=f"Надпровідник: {progress_super}%")
-                with prog_col2:
-                    st.progress(progress_metal / 100, text=f"Метал: {progress_metal}%")
             
             # Увеличиваем кадр для следующего обновления
             st.session_state.race_frame += 1
@@ -648,31 +699,37 @@ def racing_page():
             col_stat1, col_stat2, col_stat3 = st.columns(3)
             
             with col_stat1:
-                max_super = np.max(np.abs(data['j_super']))
-                max_metal = np.max(np.abs(data['j_metal']))
-                if max_metal > 0:
-                    ratio = max_super / max_metal
-                    delta = f"{ratio:.1f}x швидше" if ratio > 1 else "Однаково"
-                else:
-                    delta = "∞ швидше"
-                st.metric("Макс. швидкість", f"{max_super:.1e} А/м²", delta)
+                max_car1 = np.max(np.abs(data['j_car1']))
+                max_car2 = np.max(np.abs(data['j_car2']))
+                winner = "🏎️ Машинка 1" if max_car1 > max_car2 else "🚗 Машинка 2" if max_car2 > max_car1 else "🤝 Нічия"
+                st.metric("Переможець", winner)
             
             with col_stat2:
-                final_super = data['j_super'][-1]
-                final_metal = data['j_metal'][-1]
-                if final_metal > 0:
-                    ratio = final_super / final_metal
-                    delta = f"{ratio:.1f}x" if ratio > 1 else "Однаково"
-                else:
-                    delta = "∞"
-                st.metric("Фінальна швидкість", f"{final_super:.1e} А/м²", delta)
+                final_car1 = data['j_car1'][-1]
+                final_car2 = data['j_car2'][-1]
+                st.metric("Фінальна швидкість 1", f"{final_car1:.1e} А/м²")
+                st.metric("Фінальна швидкість 2", f"{final_car2:.1e} А/м²")
             
             with col_stat3:
-                if data['race_temp'] < Tc:
-                    st.success("🏆 ПЕРЕМОГА НАДПРОВІДНИКА!")
-                    st.balloons()
+                if max_car1 > max_car2:
+                    st.success("🏆 Перемога машинки 1!")
+                elif max_car2 > max_car1:
+                    st.success("🏆 Перемога машинки 2!")
                 else:
-                    st.info("🤝 НІЧИЯ! Обидва мають опір")
+                    st.info("🤝 Нічия!")
+                st.balloons()
+            
+            # Образовательный вывод
+            with st.expander("📚 Пояснення результатів"):
+                if data['car1_type'] == "Надпровідник" and data['car1_temp'] < Tc:
+                    st.write("✅ **Машинка 1 (надпровідник)**: Працює правильно - немає опору!")
+                elif data['car1_type'] == "Надпровідник" and data['car1_temp'] >= Tc:
+                    st.write("❌ **Машинка 1 (надпровідник)**: Не працює - температура вище T_c!")
+                
+                if data['car2_type'] == "Надпровідник" and data['car2_temp'] < Tc:
+                    st.write("✅ **Машинка 2 (надпровідник)**: Працює правильно - немає опору!")
+                elif data['car2_type'] == "Надпровідник" and data['car2_temp'] >= Tc:
+                    st.write("❌ **Машинка 2 (надпровідник)**: Не працює - температура вище T_c!")
             
             if st.button("🔄 Нова гонка", use_container_width=True):
                 st.session_state.race_started = False
@@ -701,8 +758,12 @@ def racing_page():
             """)
         
         st.markdown("""
-        ### 🎯 Порада:
-        Встановіть температуру **нижче 9.2K** щоб побачити справжню силу надпровідника!
+        ### 🎯 Експериментуй!
+        Спробуй різні комбінації:
+        - Два надпровідники
+        - Два метали  
+        - Надпровідник vs метал
+        - Надпровідник з високою температурою
         """)
 # =============================================================================
 # ПЕРЕДБАЧ МАЙБУТНЄ

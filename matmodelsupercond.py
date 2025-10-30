@@ -733,52 +733,6 @@ def racing_page():
 # =============================================================================
 # СТОРІНКА ПЕРЕДБАЧЕНЬ
 # =============================================================================
-
-def generate_game_problem(difficulty):
-    """Генерація випадкової задачі для гри"""
-    problems = {
-        "easy": [
-            {"field": "Статичне", "T": 4.2, "E0": 1.0, "hint": "Надпровідник при низькій температурі"},
-            {"field": "Статичне", "T": 12.0, "E0": 1.0, "hint": "Метал при високій температурі"}
-        ],
-        "medium": [
-            {"field": "Лінійне", "T": 4.2, "E0": 0.5, "hint": "Надпровідник з лінійним полем"},
-            {"field": "Синусоїдальне", "T": 12.0, "E0": 2.0, "hint": "Метал зі змінним полем"}
-        ],
-        "hard": [
-            {"field": random.choice(["Статичне", "Лінійне", "Синусоїдальне"]), 
-             "T": random.uniform(3.0, 15.0), 
-             "E0": random.uniform(0.3, 3.0),
-             "hint": "Випадкові параметри - вгадай стан!"}
-        ]
-    }
-    
-    difficulty_key = "easy" if "Простий" in difficulty else "medium" if "Середній" in difficulty else "hard"
-    problem = random.choice(problems[difficulty_key])
-    
-    # Генерація даних
-    t_known = np.linspace(0, 2.5, 50)
-    t_full = np.linspace(0, 5, 100)
-    
-    if problem["T"] < Tc:
-        j_known = calculate_superconducting_current(t_known, problem["field"], problem["E0"], 1.0, 5.0, 0.0, problem["T"])
-        j_full = calculate_superconducting_current(t_full, problem["field"], problem["E0"], 1.0, 5.0, 0.0, problem["T"])
-        material_type = "super"
-    else:
-        j_known = calculate_normal_current_drude(t_known, problem["field"], problem["T"], problem["E0"], 1.0, 5.0, 0.0)
-        j_full = calculate_normal_current_drude(t_full, problem["field"], problem["T"], problem["E0"], 1.0, 5.0, 0.0)
-        material_type = "metal"
-    
-    return {
-        "t_known": t_known,
-        "j_known": j_known,
-        "t_full": t_full,
-        "j_full": j_full,
-        "material_type": material_type,
-        "params": problem,
-        "hint": problem["hint"]
-    }
-
 def prediction_game_page():
     st.header("🔮 Передбач майбутнє провідника!")
     
@@ -796,6 +750,8 @@ def prediction_game_page():
         st.session_state.user_choice = None
     if 'show_solution' not in st.session_state:
         st.session_state.show_solution = False
+    if 'user_drawing' not in st.session_state:
+        st.session_state.user_drawing = None
     
     col1, col2 = st.columns([2, 1])
     
@@ -813,6 +769,7 @@ def prediction_game_page():
             st.session_state.game_data = generate_game_problem(game_mode)
             st.session_state.user_choice = None
             st.session_state.show_solution = False
+            st.session_state.user_drawing = None
             st.rerun()
         
         # Відображення задачі
@@ -837,7 +794,7 @@ def prediction_game_page():
             ))
             
             # Передбачення користувача
-            if st.session_state.user_drawing:
+            if st.session_state.user_drawing is not None:
                 user_t, user_j = st.session_state.user_drawing
                 fig.add_trace(go.Scatter(
                     x=user_t, y=user_j,

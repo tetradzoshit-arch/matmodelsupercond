@@ -1154,40 +1154,42 @@ def main_page():
         
         comparison_mode = st.radio(
             "Режим:",
-            ["Один стан", "Порівняння", "Збережені графіки"]
+            ["Один стан", "Порівняння", "Збережені графіки"],
+            key="comparison_mode_radio"
         )
         
         st.subheader("Загальні параметри")
-        field_type = st.selectbox("Тип поля:", ["Статичне", "Лінійне", "Синусоїдальне"])
-        E0 = st.slider("Напруженість E₀ (В/м)", 0.1, 100.0, 1.0, 0.1)
-        j0 = st.slider("Початковий струм j₀ (А/м²)", 0.0, 100.0, 0.0, 0.1)
-        t_max = st.slider("Час моделювання (с)", 0.1, 20.0, 5.0, 0.1)
+        field_type = st.selectbox("Тип поля:", ["Статичне", "Лінійне", "Синусоїдальне"], key="field_type_select")
+        E0 = st.slider("Напруженість E₀ (В/м)", 0.1, 100.0, 1.0, 0.1, key="E0_slider")
+        j0 = st.slider("Початковий струм j₀ (А/м²)", 0.0, 100.0, 0.0, 0.1, key="j0_slider")
+        t_max = st.slider("Час моделювання (с)", 0.1, 20.0, 5.0, 0.1, key="t_max_slider")
         
-        a = st.slider("Швидкість росту a", 0.1, 10.0, 1.0, 0.1) if field_type == "Лінійне" else 1.0
-        omega = st.slider("Частота ω (рад/с)", 0.1, 50.0, 5.0, 0.1) if field_type == "Синусоїдальне" else 1.0
+        a = st.slider("Швидкість росту a", 0.1, 10.0, 1.0, 0.1, key="a_slider") if field_type == "Лінійне" else 1.0
+        omega = st.slider("Частота ω (рад/с)", 0.1, 50.0, 5.0, 0.1, key="omega_slider") if field_type == "Синусоїдальне" else 1.0
         
         st.subheader("Параметри станів")
         if comparison_mode == "Порівняння":
-            T_common = st.slider("Температура (K)", 0.1, 18.4, 4.2, 0.1)
+            T_common = st.slider("Температура (K)", 0.1, 18.4, 4.2, 0.1, key="T_common_slider")
             current_temp = T_common
             current_state = determine_state(T_common)
             st.info(f"🔍 Автоматичне визначення: {current_state}")
             
         elif comparison_mode == "Один стан":
-            T_input = st.slider("Температура (K)", 0.1, 18.4, 4.2, 0.1)
+            T_input = st.slider("Температура (K)", 0.1, 18.4, 4.2, 0.1, key="T_input_slider")
             current_temp = T_input
             auto_state = determine_state(T_input)
             st.info(f"🔍 Автоматичне визначення: {auto_state}")
             metal_model = st.radio("Модель для звичайного стану:", 
-                ["Модель Друде (з перехідним процесом)", "Закон Ома (стаціонарний)"])
+                ["Модель Друде (з перехідним процесом)", "Закон Ома (стаціонарний)"],
+                key="metal_model_radio")
         else:
-            T_multi = st.slider("Температура (K)", 0.1, 18.4, 4.2, 0.1)
+            T_multi = st.slider("Температура (K)", 0.1, 18.4, 4.2, 0.1, key="T_multi_slider")
             current_temp = T_multi
-            metal_model = "Модель Друде (з перехідним процесом)"  # Значение по умолчанию
+            metal_model = "Модель Друде (з перехідним процесом)"
 
         # Кнопка збереження поточного графіка
         if comparison_mode in ["Один стан", "Порівняння"]:
-            if st.button("💾 Зберегти поточний графік", use_container_width=True):
+            if st.button("💾 Зберегти поточний графік", use_container_width=True, key="save_plot_btn"):
                 plot_data = {
                     't': np.linspace(0, t_max, 1000),
                     'field_type': field_type, 'E0': E0, 'j0': j0, 'a': a, 'omega': omega,
@@ -1216,110 +1218,13 @@ def main_page():
                 st.session_state.saved_plots.append(plot_data)
                 st.success(f"Графік збережено! Всього збережено: {len(st.session_state.saved_plots)}")
 
-        if st.session_state.saved_plots and st.button("🗑️ Очистити всі збережені графіки", use_container_width=True):
+        if st.session_state.saved_plots and st.button("🗑️ Очистити всі збережені графіки", use_container_width=True, key="clear_plots_btn"):
             st.session_state.saved_plots = []
             st.success("Всі збережені графіки видалено!")
 
     # Основний контент
     col1, col2 = st.columns([2, 1])
     
-    with col1:
-        if comparison_mode == "Збережені графіки":
-            st.header("📊 Збережені графіки")
-            
-            if not st.session_state.saved_plots:
-                st.info("Немає збережених графіків. Збережіть графіки в інших режимах.")
-            else:
-                fig_saved = go.Figure()
-                
-                for i, plot_data in enumerate(st.session_state.saved_plots):
-                    if plot_data['state'] == 'Надпровідник':
-                        fig_saved.add_trace(go.Scatter(
-                            x=plot_data['t'], y=plot_data['j_data'], 
-                            name=f"Надпровідник {i+1} (T={plot_data['temperature']}K)",
-                            line=dict(width=2), opacity=0.7
-                        ))
-                    elif plot_data['state'] == 'Звичайний стан':
-                        fig_saved.add_trace(go.Scatter(
-                            x=plot_data['t'], y=plot_data['j_data'],
-                            name=f"Звичайний стан {i+1} (T={plot_data['temperature']}K, {plot_data['model']})",
-                            line=dict(width=2), opacity=0.7
-                        ))
-                    elif plot_data['state'] == 'Порівняння':
-                        fig_saved.add_trace(go.Scatter(
-                            x=plot_data['t'], y=plot_data['j_super'], 
-                            name=f"Надпровідник {i+1}", line=dict(width=2), opacity=0.7
-                        ))
-                        fig_saved.add_trace(go.Scatter(
-                            x=plot_data['t'], y=plot_data['j_normal'], 
-                            name=f"Звичайний стан {i+1}", line=dict(width=2), opacity=0.7
-                        ))
-                
-                fig_saved.update_layout(
-                    title="Усі збережені графіки",
-                    xaxis_title="Час (с)",
-                    yaxis_title="Густина струму (А/м²)",
-                    height=600,
-                    showlegend=True
-                )
-                fig_saved.update_yaxes(tickformat=".2e")
-                st.plotly_chart(fig_saved, use_container_width=True)
-        
-        else:
-            st.header("📈 Графіки струму")
-            
-            t = np.linspace(0, t_max, 1000)
-            fig = go.Figure()
-            physical_analyses = []
-            math_analyses = []
-            
-            if comparison_mode == "Порівняння":
-                j_super = calculate_superconducting_current(t, field_type, E0, a, omega, j0, T_common)
-                j_normal = calculate_normal_current_drude(t, field_type, T_common, E0, a, omega, j0)
-                
-                fig.add_trace(go.Scatter(x=t, y=j_super, name='Надпровідник', line=dict(color='red', width=3)))
-                fig.add_trace(go.Scatter(x=t, y=j_normal, name='Звичайний стан (Друде)', line=dict(color='blue', width=3)))
-                
-                physical_analyses = [
-                    analyze_physical_characteristics(t, j_super, "Надпровідник", field_type, T_common, omega),
-                    analyze_physical_characteristics(t, j_normal, "Звичайний стан", field_type, T_common, omega)
-                ]
-                math_analyses = [
-                    analyze_mathematical_characteristics(t, j_super, "Надпровідник", field_type, omega),
-                    analyze_mathematical_characteristics(t, j_normal, "Звичайний стан", field_type, omega)
-                ]
-                
-            elif comparison_mode == "Один стан":
-                auto_state = determine_state(current_temp)
-                if auto_state == "Надпровідник":
-                    j_data = calculate_superconducting_current(t, field_type, E0, a, omega, j0, current_temp)
-                    fig.add_trace(go.Scatter(x=t, y=j_data, name='Надпровідник', line=dict(color='red', width=3)))
-                    physical_analyses = [analyze_physical_characteristics(t, j_data, "Надпровідник", field_type, current_temp, omega)]
-                    math_analyses = [analyze_mathematical_characteristics(t, j_data, "Надпровідник", field_type, omega)]
-                else:
-                    calc_func = calculate_normal_current_drude if metal_model == "Модель Друде (з перехідним процесом)" else calculate_normal_current_ohm
-                    j_data = calc_func(t, field_type, current_temp, E0, a, omega, j0)
-                    model_name = "Звичайний стан (Друде)" if metal_model == "Модель Друде (з перехідним процесом)" else "Звичайний стан (Ом)"
-                    
-                    fig.add_trace(go.Scatter(x=t, y=j_data, name=model_name, line=dict(color='blue', width=3)))
-                    physical_analyses = [analyze_physical_characteristics(t, j_data, "Звичайний стан", field_type, current_temp, omega)]
-                    math_analyses = [analyze_mathematical_characteristics(t, j_data, "Звичайний стан", field_type, omega)]
-            
-            fig.update_layout(
-                title="Динаміка густини струму в ніобії",
-                xaxis_title="Час (с)",
-                yaxis_title="Густина струму (А/м²)",
-                height=500
-            )
-            fig.update_yaxes(tickformat=".2e")
-            st.plotly_chart(fig, use_container_width=True)
-            
-            if physical_analyses:
-                st.header("📊 Фізичний аналіз")
-                st.dataframe(pd.DataFrame(physical_analyses), use_container_width=True, height=200)
-                
-                st.header("🧮 Математичний аналіз")
-                # В функції main_page() знайдіть розділ "Збережені графіки" та додайте:
     with col1:
         if comparison_mode == "Збережені графіки":
             st.header("📊 Збережені графіки")
@@ -1435,28 +1340,82 @@ def main_page():
                     showlegend=True
                 )
                 fig_saved.update_yaxes(tickformat=".2e")
-                st.plotly_chart(fig_saved, use_container_width=True)
+                st.plotly_chart(fig_saved, use_container_width=True, key="saved_plots_chart")
                 
                 # Додаємо таблиці аналізу
                 if physical_analyses_saved:
                     st.header("📊 Фізичний аналіз збережених графіків")
-                    st.dataframe(pd.DataFrame(physical_analyses_saved), use_container_width=True, height=300)
+                    st.dataframe(pd.DataFrame(physical_analyses_saved), use_container_width=True, height=300, key="physical_analysis_df")
                     
                 if math_analyses_saved:
                     st.header("🧮 Математичний аналіз збережених графіків")
-                    st.dataframe(pd.DataFrame(math_analyses_saved), use_container_width=True, height=300)
+                    st.dataframe(pd.DataFrame(math_analyses_saved), use_container_width=True, height=300, key="math_analysis_df")
         
         else:
+            # ... існуючий код для інших режимів з додаванням ключів ...
+            st.header("📈 Графіки струму")
+            
+            t = np.linspace(0, t_max, 1000)
+            fig = go.Figure()
+            physical_analyses = []
+            math_analyses = []
+            
+            if comparison_mode == "Порівняння":
+                j_super = calculate_superconducting_current(t, field_type, E0, a, omega, j0, T_common)
+                j_normal = calculate_normal_current_drude(t, field_type, T_common, E0, a, omega, j0)
+                
+                fig.add_trace(go.Scatter(x=t, y=j_super, name='Надпровідник', line=dict(color='red', width=3)))
+                fig.add_trace(go.Scatter(x=t, y=j_normal, name='Звичайний стан (Друде)', line=dict(color='blue', width=3)))
+                
+                physical_analyses = [
+                    analyze_physical_characteristics(t, j_super, "Надпровідник", field_type, T_common, omega),
+                    analyze_physical_characteristics(t, j_normal, "Звичайний стан", field_type, T_common, omega)
+                ]
+                math_analyses = [
+                    analyze_mathematical_characteristics(t, j_super, "Надпровідник", field_type, omega),
+                    analyze_mathematical_characteristics(t, j_normal, "Звичайний стан", field_type, omega)
+                ]
+                
+            elif comparison_mode == "Один стан":
+                auto_state = determine_state(current_temp)
+                if auto_state == "Надпровідник":
+                    j_data = calculate_superconducting_current(t, field_type, E0, a, omega, j0, current_temp)
+                    fig.add_trace(go.Scatter(x=t, y=j_data, name='Надпровідник', line=dict(color='red', width=3)))
+                    physical_analyses = [analyze_physical_characteristics(t, j_data, "Надпровідник", field_type, current_temp, omega)]
+                    math_analyses = [analyze_mathematical_characteristics(t, j_data, "Надпровідник", field_type, omega)]
+                else:
+                    calc_func = calculate_normal_current_drude if metal_model == "Модель Друде (з перехідним процесом)" else calculate_normal_current_ohm
+                    j_data = calc_func(t, field_type, current_temp, E0, a, omega, j0)
+                    model_name = "Звичайний стан (Друде)" if metal_model == "Модель Друде (з перехідним процесом)" else "Звичайний стан (Ом)"
+                    
+                    fig.add_trace(go.Scatter(x=t, y=j_data, name=model_name, line=dict(color='blue', width=3)))
+                    physical_analyses = [analyze_physical_characteristics(t, j_data, "Звичайний стан", field_type, current_temp, omega)]
+                    math_analyses = [analyze_mathematical_characteristics(t, j_data, "Звичайний стан", field_type, omega)]
+            
+            fig.update_layout(
+                title="Динаміка густини струму в ніобії",
+                xaxis_title="Час (с)",
+                yaxis_title="Густина струму (А/м²)",
+                height=500
+            )
+            fig.update_yaxes(tickformat=".2e")
+            st.plotly_chart(fig, use_container_width=True, key="main_plot_chart")
+            
+            if physical_analyses:
+                st.header("📊 Фізичний аналіз")
+                st.dataframe(pd.DataFrame(physical_analyses), use_container_width=True, height=200, key="main_physical_df")
+                
+                st.header("🧮 Математичний аналіз")
                 if len(math_analyses) == 2:
                     col_math1, col_math2 = st.columns(2)
                     with col_math1:
                         st.write("**Надпровідник:**")
-                        st.dataframe(pd.DataFrame([math_analyses[0]]).T.rename(columns={0: 'Значення'}), use_container_width=True, height=300)
+                        st.dataframe(pd.DataFrame([math_analyses[0]]).T.rename(columns={0: 'Значення'}), use_container_width=True, height=300, key="math_super_df")
                     with col_math2:
                         st.write("**Звичайний стан:**")
-                        st.dataframe(pd.DataFrame([math_analyses[1]]).T.rename(columns={0: 'Значення'}), use_container_width=True, height=300)
+                        st.dataframe(pd.DataFrame([math_analyses[1]]).T.rename(columns={0: 'Значення'}), use_container_width=True, height=300, key="math_normal_df")
                 else:
-                    st.dataframe(pd.DataFrame([math_analyses[0]]).T.rename(columns={0: 'Значення'}), use_container_width=True, height=300)
+                    st.dataframe(pd.DataFrame([math_analyses[0]]).T.rename(columns={0: 'Значення'}), use_container_width=True, height=300, key="math_single_df")
 
     with col2:
         st.header("📋 Інформація")
@@ -1475,7 +1434,7 @@ def main_page():
         
         st.write(f"**Критична температура T_c:** {Tc} K")
 
-        with st.expander("Фізичні константи ніобію"):
+        with st.expander("Фізичні константи ніобію", key="constants_expander"):
             st.write(f"**e =** {e:.3e} Кл")
             st.write(f"**m =** {m:.3e} кг")
             st.write(f"**n₀ =** {n0:.2e} м⁻³")
@@ -1483,7 +1442,7 @@ def main_page():
             st.write(f"**T_c =** {Tc} K")
 
         st.header("📄 Експорт результатів")
-        if st.button("📥 Згенерувати звіт", use_container_width=True):
+        if st.button("📥 Згенерувати звіт", use_container_width=True, key="generate_report_btn"):
             input_data = {'field_type': field_type, 'E0': E0, 'j0': j0, 't_max': t_max, 'T_common': current_temp}
             
             t = np.linspace(0, t_max, 1000)
@@ -1519,61 +1478,9 @@ def main_page():
                 data=pdf_buffer,
                 file_name="звіт_моделювання.pdf",
                 mime="application/pdf",
-                use_container_width=True
+                use_container_width=True,
+                key="download_report_btn"
             )
-    # Інформаційні розділи
-    with st.expander("ℹ️ Інструкція користування"):
-        st.markdown("""
-        **Як користуватися програмою:**
-        
-        1. **Обрати режим роботи:**
-           - *Один стан* - перегляд одного стану матеріалу
-           - *Порівняння* - одночасне порівняння надпровідного та звичайного станів
-           - *Збережені графіки* - перегляд усіх збережених результатів
-        
-        2. **Встановити параметри моделювання** в боковій панелі
-        3. **Натиснути \"💾 Зберегти поточний графік\"** для збереження результату
-        4. **Згенерувати PDF звіт** для експорту всіх даних
-        
-        """)
-
-    with st.expander("🔬 Фізичні принципи"):
-        st.markdown("""
-        **Теоретичні основи моделювання:**
-        
-        **Надпровідний стан (T < Tₐ):**
-        - Рівняння Лондонів: струм росте необмеженно лінійно/квадратично через відсутність опору
-        - Критична температура для ніобію: **Tₐ = 9.2 K**
-        
-        **Звичайний стан (T ≥ Tₐ):**
-        - Модель Друде: експоненційне насичення струму через опір
-        - Закон Ома: стаціонарна поведінка струму
-        - Час релаксації залежить від температури
-        
-        **Типи електричних полів:**
-        - *Статичне* - постійне поле
-        - *Лінійне* - поле що лінійно зростає з часом  
-        - *Синусоїдальне* - змінне гармонійне поле
-        """)
-
-    with st.expander("📊 Про аналіз даних"):
-        st.markdown("""
-        **Фізичний аналіз:**
-        - j(0), j_max - початкове та максимальне значення струму
-        - Швидкість зміни - похідна струму за часом
-        - Поведінка - фізична інтерпретація динаміки
-        
-        **Математичний аналіз:**
-        - f'(max), f'(min) - екстремуми похідної
-        - f'(сер) - середня швидкість зміни
-        - Тип функції - характеристика математичної залежності
-        
-        **Параметри ніобію:**
-        - Критична температура: **9.2 K**
-        - Діапазон моделювання: **0.1 - 18.4 K**
-        - Типовий надпровідник для досліджень
-        - Широко використовується у надпровідних магнітах
-        """)
 
 # =============================================================================
 # ОСНОВНА ФУНКЦІЯ

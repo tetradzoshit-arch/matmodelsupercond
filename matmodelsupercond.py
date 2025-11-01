@@ -1199,33 +1199,21 @@ def main_page():
         
         st.subheader("Параметри станів")
         if comparison_mode == "Порівняння":
-        T_common = st.slider("Температура (K)", 0.1, 18.4, 4.2, 0.1, key="T_common_slider")
-        current_temp = T_common
-        current_state = determine_state(T_common)
-    
-    # Автоматическое определение температур для каждого состояния
-    if T_common < Tc:
-        # Если температура ниже критической - сверхпроводник использует выбранную, обычный 18.4K
-        T_super = T_common
-        T_normal = 18.4
-        st.info(f"🔍 Режим порівняння: Надпровідник ({T_super}K) vs Звичайний стан ({T_normal}K)")
-    else:
-        # Если температура выше критической - обычный использует выбранную, сверхпроводник 4.2K
-        T_super = 4.2
-        T_normal = T_common
-        st.info(f"🔍 Режим порівняння: Надпровідник ({T_super}K) vs Звичайний стан ({T_normal}K)")
-    
-    # Автоматическое определение температур для каждого состояния
-    if T_common < Tc:
-        # Если температура ниже критической - сверхпроводник использует выбранную, обычный 18.4K
-        T_super = T_common
-        T_normal = 18.4
-        st.info(f"🔍 Режим порівняння: Надпровідник ({T_super}K) vs Звичайний стан ({T_normal}K)")
-    else:
-        # Если температура выше критической - обычный использует выбранную, сверхпроводник 4.2K
-        T_super = 4.2
-        T_normal = T_common
-        st.info(f"🔍 Режим порівняння: Надпровідник ({T_super}K) vs Звичайний стан ({T_normal}K)")
+            T_common = st.slider("Температура (K)", 0.1, 18.4, 4.2, 0.1, key="T_common_slider")
+            current_temp = T_common
+            current_state = determine_state(T_common)
+            
+            # Автоматическое определение температур для каждого состояния
+            if T_common < Tc:
+                # Если температура ниже критической - сверхпроводник использует выбранную, обычный 18.4K
+                T_super = T_common
+                T_normal = 18.4
+                st.info(f"🔍 Режим порівняння: Надпровідник ({T_super}K) vs Звичайний стан ({T_normal}K)")
+            else:
+                # Если температура выше критической - обычный использует выбранную, сверхпроводник 4.2K
+                T_super = 4.2
+                T_normal = T_common
+                st.info(f"🔍 Режим порівняння: Надпровідник ({T_super}K) vs Звичайний стан ({T_normal}K)")
             
         elif comparison_mode == "Один стан":
             T_input = st.slider("Температура (K)", 0.1, 18.4, 4.2, 0.1, key="T_input_slider")
@@ -1263,10 +1251,20 @@ def main_page():
                         plot_data['model'] = metal_model
                 
                 elif comparison_mode == "Порівняння":
-                    plot_data['j_super'] = calculate_superconducting_current(plot_data['t'], field_type, E0, a, omega, j0, T_common)
-                    plot_data['j_normal'] = calculate_normal_current_drude(plot_data['t'], field_type, T_common, E0, a, omega, j0)
+                    # Используем автоматически определенные температуры для сохранения
+                    if T_common < Tc:
+                        T_super_save = T_common
+                        T_normal_save = 18.4
+                    else:
+                        T_super_save = 4.2
+                        T_normal_save = T_common
+                    
+                    plot_data['j_super'] = calculate_superconducting_current(plot_data['t'], field_type, E0, a, omega, j0, T_super_save)
+                    plot_data['j_normal'] = calculate_normal_current_drude(plot_data['t'], field_type, T_normal_save, E0, a, omega, j0)
                     plot_data['state'] = 'Порівняння'
                     plot_data['model'] = 'Друде'
+                    plot_data['T_super'] = T_super_save
+                    plot_data['T_normal'] = T_normal_save
                 
                 st.session_state.saved_plots.append(plot_data)
                 st.success(f"Графік збережено! Всього збережено: {len(st.session_state.saved_plots)}")
@@ -1341,13 +1339,17 @@ def main_page():
                         )
                         
                     elif plot_data['state'] == 'Порівняння':
+                        # Для сохраненных графиков сравнения используем сохраненные температуры
+                        T_super_saved = plot_data.get('T_super', plot_data.get('temperature', 4.2))
+                        T_normal_saved = plot_data.get('T_normal', plot_data.get('temperature', 18.4))
+                        
                         fig_saved.add_trace(go.Scatter(
                             x=plot_data['t'], y=plot_data['j_super'], 
-                            name=f"Надпровідник {i+1}", line=dict(width=2), opacity=0.7
+                            name=f"Надпровідник {i+1} ({T_super_saved}K)", line=dict(width=2), opacity=0.7
                         ))
                         fig_saved.add_trace(go.Scatter(
                             x=plot_data['t'], y=plot_data['j_normal'], 
-                            name=f"Звичайний стан {i+1}", line=dict(width=2), opacity=0.7
+                            name=f"Звичайний стан {i+1} ({T_normal_saved}K)", line=dict(width=2), opacity=0.7
                         ))
                         # Аналіз для порівняння
                         physical_analyses_saved.append(
@@ -1355,7 +1357,7 @@ def main_page():
                                 plot_data['t'], plot_data['j_super'],
                                 'Надпровідник',
                                 plot_data['field_type'],
-                                plot_data['temperature'],
+                                T_super_saved,
                                 plot_data.get('omega', 1.0)
                             )
                         )
@@ -1364,7 +1366,7 @@ def main_page():
                                 plot_data['t'], plot_data['j_normal'],
                                 'Звичайний стан',
                                 plot_data['field_type'],
-                                plot_data['temperature'],
+                                T_normal_saved,
                                 plot_data.get('omega', 1.0)
                             )
                         )
@@ -1413,15 +1415,23 @@ def main_page():
             math_analyses = []
             
             if comparison_mode == "Порівняння":
-                j_super = calculate_superconducting_current(t, field_type, E0, a, omega, j0, T_common)
-                j_normal = calculate_normal_current_drude(t, field_type, T_common, E0, a, omega, j0)
+                # Используем автоматически определенные температуры
+                if T_common < Tc:
+                    T_super = T_common
+                    T_normal = 18.4
+                else:
+                    T_super = 4.2
+                    T_normal = T_common
                 
-                fig.add_trace(go.Scatter(x=t, y=j_super, name='Надпровідник', line=dict(color='red', width=3)))
-                fig.add_trace(go.Scatter(x=t, y=j_normal, name='Звичайний стан (Друде)', line=dict(color='blue', width=3)))
+                j_super = calculate_superconducting_current(t, field_type, E0, a, omega, j0, T_super)
+                j_normal = calculate_normal_current_drude(t, field_type, T_normal, E0, a, omega, j0)
+                
+                fig.add_trace(go.Scatter(x=t, y=j_super, name=f'Надпровідник ({T_super}K)', line=dict(color='red', width=3)))
+                fig.add_trace(go.Scatter(x=t, y=j_normal, name=f'Звичайний стан ({T_normal}K)', line=dict(color='blue', width=3)))
                 
                 physical_analyses = [
-                    analyze_physical_characteristics(t, j_super, "Надпровідник", field_type, T_common, omega),
-                    analyze_physical_characteristics(t, j_normal, "Звичайний стан", field_type, T_common, omega)
+                    analyze_physical_characteristics(t, j_super, "Надпровідник", field_type, T_super, omega),
+                    analyze_physical_characteristics(t, j_normal, "Звичайний стан", field_type, T_normal, omega)
                 ]
                 math_analyses = [
                     analyze_mathematical_characteristics(t, j_super, "Надпровідник", field_type, omega),
@@ -1496,11 +1506,19 @@ def main_page():
             math_analyses_for_report = []
             
             if comparison_mode == "Порівняння":
-                j_super = calculate_superconducting_current(t, field_type, E0, a, omega, j0, T_common)
-                j_normal = calculate_normal_current_drude(t, field_type, T_common, E0, a, omega, j0)
+                # Используем автоматически определенные температуры для отчета
+                if T_common < Tc:
+                    T_super_report = T_common
+                    T_normal_report = 18.4
+                else:
+                    T_super_report = 4.2
+                    T_normal_report = T_common
+                
+                j_super = calculate_superconducting_current(t, field_type, E0, a, omega, j0, T_super_report)
+                j_normal = calculate_normal_current_drude(t, field_type, T_normal_report, E0, a, omega, j0)
                 physical_analyses_for_report = [
-                    analyze_physical_characteristics(t, j_super, "Надпровідник", field_type, T_common, omega),
-                    analyze_physical_characteristics(t, j_normal, "Звичайний стан", field_type, T_common, omega)
+                    analyze_physical_characteristics(t, j_super, "Надпровідник", field_type, T_super_report, omega),
+                    analyze_physical_characteristics(t, j_normal, "Звичайний стан", field_type, T_normal_report, omega)
                 ]
                 math_analyses_for_report = [
                     analyze_mathematical_characteristics(t, j_super, "Надпровідник", field_type, omega),

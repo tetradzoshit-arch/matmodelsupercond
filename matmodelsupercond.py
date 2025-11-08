@@ -418,7 +418,7 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
         st.error(traceback.format_exc())
         
         buffer = io.BytesIO()
-        report_text = "ЗВІТ З МОДЕЛЮВАННЯ СТРУМУ В НІОБІЇ\n\n"
+        report_text = "ЗВІТ З МОДЕЛЮВАННЯ СТРУМУ\n\n"
         report_text += "Загальні параметри:\n"
         report_text += f"T_c = {Tc} K, n₀ = {n0:.1e} м⁻³, τ = {tau_imp:.1e} с\n\n"
         report_text += "Збережені графіки:\n"
@@ -434,7 +434,7 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
         st.error(traceback.format_exc())
         
         buffer = io.BytesIO()
-        report_text = "ЗВІТ З МОДЕЛЮВАННЯ СТРУМУ В НІОБІЇ\n\n"
+        report_text = "ЗВІТ З МОДЕЛЮВАННЯ СТРУМУ\n\n"
         report_text += "Загальні параметри:\n"
         report_text += f"T_c = {Tc} K, n₀ = {n0:.1e} м⁻³, τ = {tau_imp:.1e} с\n\n"
         report_text += "Збережені графіки:\n"

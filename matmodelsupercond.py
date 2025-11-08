@@ -186,7 +186,7 @@ def create_pdf_report(input_data, physical_analyses, math_analyses, saved_plots)
         
         # Сторінка 1: Загальна інформація
         pdf.setFont(font_name, 18)
-        pdf.drawString(100, height - 80, "ЗВІТ З МОДЕЛЮВАННЯ СТРУМУ В НІОБІЇ")
+        pdf.drawString(100, height - 80, "ЗВІТ З МОДЕЛЮВАННЯ СТРУМУ")
         
         pdf.setFont(font_name, 12)
         y_position = height - 120

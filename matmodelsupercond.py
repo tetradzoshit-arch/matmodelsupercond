@@ -16,7 +16,7 @@ m = 9.1e-31  # кг
 Tc = 9.2  # К
 n0 = 1.0e29  # м⁻³
 tau_imp = 5.0e-14  # с
-A_ph = 3.0e3 
+A_ph = 3.0e6
 
 def determine_state(T):
     return "Надпровідник" if T < Tc else "Звичайний стан"
